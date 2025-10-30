@@ -53,7 +53,14 @@
     updateOrder: (id, payload) => apiFetch(`/orders/${id}`, { method: 'PUT', body: payload }),
     deleteOrder: (id) => apiFetch(`/orders/${id}`, { method: 'DELETE' }),
 
-    register: (payload) => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  // Users & Auth
+  getUsers: () => apiFetch('/users'),
+  getUser: (id) => apiFetch(`/users/${id}`),
+  createUser: (payload) => apiFetch('/auth/register', { method: 'POST', body: payload }),
+  updateUser: (id, payload) => apiFetch(`/users/${id}`, { method: 'PUT', body: payload }),
+  deleteUser: (id) => apiFetch(`/users/${id}`, { method: 'DELETE' }),
+
+  register: (payload) => apiFetch('/auth/register', { method: 'POST', body: payload }),
     login: (payload) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
     getCart: () => apiFetch('/cart', { method: 'GET' }),
     updateCart: (cart) => apiFetch('/cart', { method: 'POST', body: JSON.stringify({ cart }) }),

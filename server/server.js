@@ -11,6 +11,7 @@ const adminRouter = require('./routes/admin');
 const checkoutRouter = require('./routes/checkout');
 const debugRouter = require('./routes/debug');
 const ordersRouter = require('./routes/orders');
+const usersRouter = require('./routes/users');
 const Product = require('./models/Product');
 
 const app = express();
@@ -66,6 +67,7 @@ app.use('/api/cart', cartRouter);
 app.use('/api', adminRouter);
 app.use('/api/checkout', checkoutRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/users', usersRouter);
 // Debug routes (only enabled when DEBUG_API=true in env)
 app.use('/api/debug', debugRouter);
 

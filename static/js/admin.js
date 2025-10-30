@@ -58,6 +58,12 @@ class AdminPanelManager {
             console.warn('No se pudo cargar pedidos desde server:', err);
         }
 
+        // Users
+        try {
+            await this.fetchUsers();
+        } catch (err) {
+            console.warn('No se pudo cargar usuarios desde server:', err);
+        }
         // Refresh UI
         try {
             this.loadDashboard();
@@ -637,7 +643,7 @@ class AdminPanelManager {
     showUsers() {
         const usuarios = this.getUsers();
         const tbody = document.getElementById('usersTable');
-        
+
         tbody.innerHTML = usuarios.map(user => `
             <tr>
                 <td>${user.email}</td>
@@ -646,13 +652,13 @@ class AdminPanelManager {
                 <td>${user.cedula}</td>
                 <td>${user.fechaRegistro ? new Date(user.fechaRegistro).toLocaleDateString() : 'N/A'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="adminManager.viewUser('${user.email}')">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="adminManager.viewUser('${user.id}')">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success me-2" onclick="adminManager.editUser('${user.email}')">
+                    <button class="btn btn-sm btn-outline-success me-2" onclick="adminManager.editUser('${user.id}')">
                         <i class="fa-solid fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="adminManager.deleteUser('${user.email}')">
+                    <button class="btn btn-sm btn-outline-danger" onclick="adminManager.deleteUser('${user.id}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </td>
@@ -665,34 +671,91 @@ class AdminPanelManager {
         return JSON.parse(localStorage.getItem('registeredUsers') || '[]');
     }
 
-    // Ver detalles de usuario
-    viewUser(email) {
-        const usuarios = this.getUsers();
-        const user = usuarios.find(u => u.email === email);
-        
-        if (!user) {
-            Swal.fire('Error', 'Usuario no encontrado', 'error');
-            return;
+    // Fetch users from server and cache in localStorage (non-blocking)
+    async fetchUsers() {
+        try {
+            // Prefer using api client if available
+            let users = null;
+            if (window.api && typeof window.api.getUsers === 'function') {
+                users = await window.api.getUsers();
+            } else {
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch('/api/users', { headers });
+                if (!res.ok) throw new Error('Failed fetching users');
+                users = await res.json();
+            }
+
+            // Normalize shape expected by admin UI
+            const normalized = users.map(u => ({
+                _id: u._id || u.id,
+                id: u._id || u.id,
+                email: u.email,
+                nombre: u.nombre || '',
+                apellido: u.apellido || '',
+                cedula: u.cedula || '',
+                telefono: u.telefono || '',
+                photo: u.photo || u.photoUrl || null,
+                fechaRegistro: u.createdAt || u.fechaRegistro || u.createdAt
+            }));
+
+            localStorage.setItem('registeredUsers', JSON.stringify(normalized));
+            console.log('Admin: usuarios cargados desde server:', normalized.length);
+            return normalized;
+        } catch (err) {
+            console.warn('fetchUsers error:', err);
+            throw err;
         }
-        
-        Swal.fire({
-            title: 'Detalles del Usuario',
-            html: `
-                <div class="text-start">
-                    <p><strong>Email:</strong> ${user.email}</p>
-                    <p><strong>Nombre:</strong> ${user.nombre}</p>
-                    <p><strong>Apellido:</strong> ${user.apellido}</p>
-                    <p><strong>Cédula:</strong> ${user.cedula}</p>
-                    <p><strong>Teléfono:</strong> ${user.telefono || 'No especificado'}</p>
-                    <p><strong>Fecha de Registro:</strong> ${user.fechaRegistro ? new Date(user.fechaRegistro).toLocaleString() : 'N/A'}</p>
-                </div>
-            `,
-            confirmButtonText: 'Cerrar'
-        });
     }
 
-    // Eliminar usuario
-    deleteUser(email) {
+    // Ver detalles de usuario
+    async viewUser(id) {
+        try {
+            let user = null;
+            // Try to fetch single user from server
+            try {
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch(`/api/users/${id}`, { headers });
+                if (res.ok) user = await res.json();
+            } catch (err) {
+                console.warn('Could not fetch user from server, falling back to localStorage', err);
+            }
+
+            if (!user) {
+                const usuarios = this.getUsers();
+                user = usuarios.find(u => (u._id === id || u.id === id || u.email === id));
+            }
+
+            if (!user) {
+                Swal.fire('Error', 'Usuario no encontrado', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Detalles del Usuario',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Nombre:</strong> ${user.nombre}</p>
+                        <p><strong>Apellido:</strong> ${user.apellido}</p>
+                        <p><strong>Cédula:</strong> ${user.cedula}</p>
+                        <p><strong>Teléfono:</strong> ${user.telefono || 'No especificado'}</p>
+                        <p><strong>Fecha de Registro:</strong> ${user.fechaRegistro ? new Date(user.fechaRegistro).toLocaleString() : 'N/A'}</p>
+                    </div>
+                `,
+                confirmButtonText: 'Cerrar'
+            });
+        } catch (err) {
+            console.error('viewUser error:', err);
+            Swal.fire('Error', 'Error al obtener los detalles del usuario', 'error');
+        }
+    }
+
+    // Eliminar usuario (by id)
+    deleteUser(id) {
         Swal.fire({
             title: '¿Eliminar usuario?',
             text: 'Esta acción no se puede deshacer',
@@ -700,99 +763,144 @@ class AdminPanelManager {
             showCancelButton: true,
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar'
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
-                const usuarios = this.getUsers();
-                const filteredUsers = usuarios.filter(u => u.email !== email);
-                
-                localStorage.setItem('registeredUsers', JSON.stringify(filteredUsers));
-                this.showUsers();
-                
-                Swal.fire({
-                    title: '¡Eliminado!',
-                    text: 'El usuario ha sido eliminado',
-                    icon: 'success',
-                    timer: 2000
-                });
+                Swal.fire({ title: 'Eliminando usuario...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    const token = localStorage.getItem('token');
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers });
+                    if (!res.ok) throw new Error('Server delete failed');
+
+                    // Remove from cache
+                    const usuarios = this.getUsers();
+                    const filteredUsers = usuarios.filter(u => (u._id || u.id) !== id);
+                    localStorage.setItem('registeredUsers', JSON.stringify(filteredUsers));
+                    this.showUsers();
+
+                    Swal.fire({ title: '¡Eliminado!', text: 'El usuario ha sido eliminado', icon: 'success', timer: 2000 });
+                } catch (err) {
+                    console.warn('Fallo eliminación en server, eliminando localmente. Error:', err);
+                    const usuarios = this.getUsers();
+                    const filteredUsers = usuarios.filter(u => u.email !== id && (u._id || u.id) !== id);
+                    localStorage.setItem('registeredUsers', JSON.stringify(filteredUsers));
+                    this.showUsers();
+                    Swal.fire({ title: '¡Eliminado localmente!', text: 'El usuario fue eliminado del almacenamiento local', icon: 'warning', timer: 2000 });
+                }
             }
         });
     }
 
-    // Editar usuario
-    editUser(email) {
-        console.log('🔧 editUser llamado con email:', email);
-        const usuarios = this.getUsers();
-        console.log('📋 Usuarios disponibles:', usuarios.length);
-        const user = usuarios.find(u => u.email === email);
-        
-        if (!user) {
-            console.error('❌ Usuario no encontrado en editUser:', email);
-            Swal.fire('Error', 'Usuario no encontrado', 'error');
-            return;
+    // Editar usuario (by id)
+    async editUser(id) {
+        console.log('🔧 editUser llamado con id:', id);
+        try {
+            let user = null;
+            // Try server
+            try {
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch(`/api/users/${id}`, { headers });
+                if (res.ok) user = await res.json();
+            } catch (err) {
+                console.warn('No se pudo obtener usuario desde servidor, usando cache local', err);
+            }
+
+            if (!user) {
+                const usuarios = this.getUsers();
+                user = usuarios.find(u => (u._id === id || u.id === id || u.email === id));
+            }
+
+            if (!user) {
+                console.error('❌ Usuario no encontrado en editUser:', id);
+                Swal.fire('Error', 'Usuario no encontrado', 'error');
+                return;
+            }
+
+            // Rellenar formulario con datos del usuario
+            document.getElementById('editUserId').value = user._id || user.id || user.email;
+            document.getElementById('userEmail').value = user.email || '';
+            document.getElementById('userName').value = user.nombre || '';
+            document.getElementById('userLastName').value = user.apellido || '';
+            document.getElementById('userCedula').value = user.cedula || '';
+            document.getElementById('userPhone').value = user.telefono || '';
+            document.getElementById('userPassword').value = '';
+            document.getElementById('userPhoto').value = user.photo || '';
+
+            // Mostrar foto del usuario si existe
+            if (user.photo) {
+                showUserPhotoPreview(user.photo);
+            } else {
+                clearUserPhoto();
+            }
+
+            // Cambiar título del modal y hacer la contraseña opcional
+            document.getElementById('userModalTitle').textContent = 'Editar Usuario';
+            document.getElementById('passwordRequiredText').textContent = '';
+            document.getElementById('passwordHelp').style.display = 'block';
+            document.getElementById('userPassword').required = false;
+
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('userModal'));
+            modal.show();
+        } catch (err) {
+            console.error('editUser error:', err);
+            Swal.fire('Error', 'No se pudo cargar el usuario para edición', 'error');
         }
-        
-        console.log('✅ Usuario encontrado para editar:', user);
-        
-        // Rellenar formulario con datos del usuario
-        document.getElementById('editUserId').value = email;
-        console.log('📝 editUserId establecido a:', email);
-        document.getElementById('userEmail').value = user.email;
-        document.getElementById('userName').value = user.nombre;
-        document.getElementById('userLastName').value = user.apellido;
-        document.getElementById('userCedula').value = user.cedula;
-        document.getElementById('userPhone').value = user.telefono || '';
-        document.getElementById('userPassword').value = '';
-        document.getElementById('userPhoto').value = user.photo || '';
-        
-        // Mostrar foto del usuario si existe
-        if (user.photo) {
-            showUserPhotoPreview(user.photo);
-        } else {
-            clearUserPhoto();
-        }
-        
-        // Cambiar título del modal y hacer la contraseña opcional
-        document.getElementById('userModalTitle').textContent = 'Editar Usuario';
-        document.getElementById('passwordRequiredText').textContent = '';
-        document.getElementById('passwordHelp').style.display = 'block';
-        document.getElementById('userPassword').required = false;
-        
-        // Mostrar modal
-        const modal = new bootstrap.Modal(document.getElementById('userModal'));
-        modal.show();
     }
 
     // Actualizar usuario
-    updateUser(userData) {
-        const usuarios = this.getUsers();
-        const index = usuarios.findIndex(u => u.email === userData.email);
-        
-        if (index === -1) {
-            Swal.fire('Error', 'Usuario no encontrado', 'error');
-            return;
-        }
-        
-        // Verificar que el nuevo email no esté en uso por otro usuario
-        if (userData.email !== usuarios[index].email && usuarios.some(u => u.email === userData.email)) {
-            Swal.fire('Error', 'Este email ya está registrado', 'error');
-            return;
-        }
-        
-        usuarios[index] = {
-            ...usuarios[index],
-            ...userData
-        };
-        
-        localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
-        
-        Swal.fire({
-            title: '¡Éxito!',
-            text: 'Usuario actualizado correctamente',
-            icon: 'success',
-            timer: 2000
-        }).then(() => {
+    // Update user (attempt server PUT, fallback to localStorage)
+    async updateUser(userData) {
+        try {
+            const id = userData.id || userData._id || document.getElementById('editUserId').value;
+            if (!id) throw new Error('Missing user id');
+
+            const payload = {
+                nombre: userData.nombre,
+                apellido: userData.apellido,
+                email: userData.email,
+                cedula: userData.cedula,
+                telefono: userData.telefono,
+                photo: userData.photo || null
+            };
+
+            const token = localStorage.getItem('token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const res = await fetch(`/api/users/${id}`, { method: 'PUT', headers, body: JSON.stringify(payload) });
+            if (!res.ok) throw new Error('Server update failed');
+            const updated = await res.json();
+
+            // Update cache
+            const usuarios = this.getUsers();
+            const idx = usuarios.findIndex(u => (u._id === id || u.id === id || u.email === id));
+            if (idx !== -1) {
+                usuarios[idx] = { ...usuarios[idx], ...updated, id: updated._id || updated.id };
+            } else {
+                usuarios.push({ ...updated, id: updated._id || updated.id });
+            }
+            localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
             this.showUsers();
-        });
+
+            Swal.fire({ title: '¡Éxito!', text: 'Usuario actualizado correctamente', icon: 'success', timer: 2000 });
+        } catch (err) {
+            console.warn('updateUser fallback to localStorage, error:', err);
+            // local fallback
+            const usuarios = this.getUsers();
+            const index = usuarios.findIndex(u => u.email === userData.email || u._id === userData.id || u.id === userData.id);
+            if (index === -1) {
+                Swal.fire('Error', 'Usuario no encontrado', 'error');
+                return;
+            }
+            usuarios[index] = { ...usuarios[index], ...userData };
+            localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
+            Swal.fire({ title: '¡Éxito!', text: 'Usuario actualizado (localmente)', icon: 'warning', timer: 2000 });
+            this.showUsers();
+        }
     }
 
     // === GESTIÓN DE PEDIDOS ===
@@ -1553,8 +1661,16 @@ function showProducts() {
     adminManager.showProducts();
 }
 
-function showUsers() { 
-    showSection('users'); 
+// Show users section and refresh users from server when possible
+async function showUsers() {
+    showSection('users');
+    try {
+        if (adminManager && typeof adminManager.fetchUsers === 'function') {
+            await adminManager.fetchUsers();
+        }
+    } catch (err) {
+        console.warn('Could not refresh users from server:', err);
+    }
     adminManager.showUsers();
 }
 
@@ -1602,6 +1718,34 @@ function showAddProductModal() {
     modal.show();
     
     console.log('Add product modal shown'); // Debug
+}
+
+// Modal para agregar usuario
+function showAddUserModal() {
+    // Reset form
+    const form = document.getElementById('userForm');
+    if (form) form.reset();
+
+    // Clear edit id
+    const editField = document.getElementById('editUserId');
+    if (editField) editField.value = '';
+
+    // Set modal title and password requirements for creation
+    const title = document.getElementById('userModalTitle');
+    if (title) title.textContent = 'Agregar Usuario';
+    const passwordRequiredText = document.getElementById('passwordRequiredText');
+    if (passwordRequiredText) passwordRequiredText.textContent = '*';
+    const passwordHelp = document.getElementById('passwordHelp');
+    if (passwordHelp) passwordHelp.style.display = 'none';
+    const passwordField = document.getElementById('userPassword');
+    if (passwordField) passwordField.required = true;
+
+    // Clear photo preview
+    clearUserPhoto();
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('userModal'));
+    modal.show();
 }
 
 // Guardar producto (agregar o editar)
@@ -1703,7 +1847,7 @@ function saveProduct() {
 }
 
 // Función para guardar usuario (faltaba esta función)
-function saveUser() {
+async function saveUser() {
     console.log('✅ saveUser function called');
     
     try {
@@ -1762,100 +1906,95 @@ function saveUser() {
             apellido: apellido,
             cedula: cedula,
             telefono: telefono || '',
-            photo: photo || null,
-            fechaRegistro: new Date().toISOString()
+            photo: photo || null
         };
-        
-        // Si hay contraseña nueva, agregarla
+
+        // Si hay contraseña nueva, agregarla (necesaria para creación)
         if (password && password.trim()) {
             userData.password = password;
         }
-        
-        // Obtener usuarios existentes (usar la misma clave que getUsers())
-        const usuarios = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
-        console.log('✅ Usuarios disponibles:', usuarios.length);
-        console.log('📋 Lista de emails:', usuarios.map(u => u.email));
-        
+
+        // Si estamos editando (editUserId holds user id), call server PUT /api/users/:id
         if (editUserId) {
-            // EDITAR usuario existente
-            console.log('🔧 Modo EDICIÓN - Buscando usuario con email:', editUserId);
-            const userIndex = usuarios.findIndex(u => u.email === editUserId);
-            console.log('📍 Índice encontrado:', userIndex);
-            
-            if (userIndex !== -1) {
-                console.log('✅ Usuario encontrado para editar:', usuarios[userIndex].email);
-                
-                // Si el email cambió, verificar que no exista otro usuario con el nuevo email
-                if (email !== editUserId && usuarios.find(u => u.email === email)) {
-                    Swal.fire('Error', 'Ya existe otro usuario con este email', 'error');
-                    return;
-                }
-                
-                // Mantener la contraseña anterior si no se proporcionó una nueva
-                if (!userData.password) {
-                    userData.password = usuarios[userIndex].password;
-                }
-                
-                // Mantener fecha de registro original
-                userData.fechaRegistro = usuarios[userIndex].fechaRegistro;
-                userData.fechaModificacion = new Date().toISOString();
-                
-                usuarios[userIndex] = userData;
-                console.log('✅ Usuario actualizado:', userData);
-            } else {
-                console.error('❌ Usuario no encontrado en editUser:', email);
-                Swal.fire('Error', 'Usuario no encontrado', 'error');
+            // Build payload for update (do not send password here unless explicitly provided)
+            const payload = { ...userData };
+            if (!payload.password) delete payload.password;
+
+            try {
+                await adminManager.updateUser({ id: editUserId, ...payload });
+                const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
+                if (modal) modal.hide();
+                form.reset();
+                document.getElementById('editUserId').value = '';
                 return;
+            } catch (err) {
+                console.warn('Update user failed, falling back to local update', err);
             }
-        } else {
-            // CREAR nuevo usuario
-            // Verificar que el email no exista
-            if (usuarios.find(u => u.email === email)) {
-                Swal.fire('Error', 'Ya existe un usuario con este email', 'error');
-                return;
-            }
-            
-            // Verificar que la cédula no exista
-            if (usuarios.find(u => u.cedula === cedula)) {
-                Swal.fire('Error', 'Ya existe un usuario con esta cédula', 'error');
-                return;
-            }
-            
+        }
+
+        // Creation flow: call server /api/auth/register if possible
+        try {
             if (!password) {
                 Swal.fire('Error', 'La contraseña es obligatoria para nuevos usuarios', 'error');
                 return;
             }
-            
-            usuarios.push(userData);
-            console.log('Nuevo usuario creado:', userData);
+
+            let created = null;
+            if (window.api && typeof window.api.register === 'function') {
+                const payload = { nombre, apellido, email, password, cedula, telefono, photo };
+                const res = await window.api.register(payload).catch(e => { throw e; });
+                // api.register returns { token, user }
+                created = res.user || null;
+            } else {
+                const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, apellido, email, password, cedula, telefono, photo }) });
+                if (!res.ok) {
+                    const txt = await res.text().catch(()=>null);
+                    throw new Error(txt || 'Server error creating user');
+                }
+                const body = await res.json();
+                created = body.user || null;
+            }
+
+            if (created) {
+                // add to cache
+                const usuarios = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+                usuarios.push({ _id: created.id || created._id, id: created.id || created._id, email: created.email || email, nombre: created.nombre || nombre, apellido: created.apellido || apellido, cedula: created.cedula || cedula, telefono: created.telefono || telefono, fechaRegistro: new Date().toISOString() });
+                localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
+                if (modal) modal.hide();
+                Swal.fire({ icon: 'success', title: 'Usuario creado', text: `${nombre} ${apellido} ha sido registrado correctamente`, timer: 2000, showConfirmButton: false });
+                if (typeof adminManager !== 'undefined' && adminManager.showUsers) adminManager.showUsers();
+                form.reset();
+                return;
+            }
+        } catch (err) {
+            console.warn('Error creating user on server, falling back to localStorage:', err);
+            // fallback to localStorage creation
         }
-        
-        // Guardar en localStorage (usar la misma clave que getUsers())
-        localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
-        
-        // Cerrar modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
-        if (modal) {
-            modal.hide();
+
+        // Local fallback (create user in localStorage)
+        try {
+            const usuarios = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+            if (usuarios.find(u => u.email === email)) {
+                Swal.fire('Error', 'Ya existe un usuario con este email', 'error');
+                return;
+            }
+            if (usuarios.find(u => u.cedula === cedula)) {
+                Swal.fire('Error', 'Ya existe un usuario con esta cédula', 'error');
+                return;
+            }
+            usuarios.push({ email, nombre, apellido, cedula, telefono, password, photo, fechaRegistro: new Date().toISOString() });
+            localStorage.setItem('registeredUsers', JSON.stringify(usuarios));
+            const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
+            if (modal) modal.hide();
+            Swal.fire({ icon: 'success', title: 'Usuario creado (local)', text: `${nombre} ${apellido} ha sido registrado localmente`, timer: 2000, showConfirmButton: false });
+            if (typeof adminManager !== 'undefined' && adminManager.showUsers) adminManager.showUsers();
+            form.reset();
+        } catch (err) {
+            console.error('Error saving user locally:', err);
+            Swal.fire('Error', 'Error al guardar usuario', 'error');
         }
-        
-        // Mostrar mensaje de éxito
-        Swal.fire({
-            icon: 'success',
-            title: editUserId ? 'Usuario actualizado' : 'Usuario creado',
-            text: `${nombre} ${apellido} ha sido ${editUserId ? 'actualizado' : 'registrado'} correctamente`,
-            timer: 2000,
-            showConfirmButton: false
-        });
-        
-        // Actualizar la vista de usuarios
-        if (typeof adminManager !== 'undefined' && adminManager.showUsers) {
-            adminManager.showUsers();
-        }
-        
-        // Limpiar formulario
-        form.reset();
-        document.getElementById('editUserId').value = '';
         
     } catch (error) {
         console.error('Error en saveUser:', error);
