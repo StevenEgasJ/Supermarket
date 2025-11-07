@@ -33,26 +33,68 @@ document.addEventListener("DOMContentLoaded", function() {
                 photo: userPhoto // Incluir foto del usuario
             };
 
-            // Validación básica
-            if (!userData.nombre || !userData.apellido || !userData.email || !userData.password || !userData.cedula) {
-                Swal.fire({
-                    title: 'Campos requeridos',
-                    text: 'Por favor completa todos los campos obligatorios',
-                    icon: 'error',
-                    confirmButtonText: 'OK'
-                });
+            // Validación inline: mostrar mensajes específicos por campo y resaltar campos vacíos
+            // Campos requeridos y sus etiquetas legibles
+            const requiredFields = [
+                { id: 'nombre', label: 'Nombre' },
+                { id: 'apellido', label: 'Apellido' },
+                { id: 'email', label: 'Email' },
+                { id: 'password', label: 'Contraseña' },
+                { id: 'cedula', label: 'Cédula' },
+                { id: 'telefono', label: 'Teléfono' }
+            ];
+
+            // Limpiar errores previos
+            requiredFields.forEach(f => {
+                const el = document.getElementById(f.id);
+                if (!el) return;
+                const msgEl = document.getElementById(`${f.id}-inline-error`);
+                if (msgEl) msgEl.remove();
+                el.classList.remove('is-invalid');
+            });
+
+            let firstInvalid = null;
+            requiredFields.forEach(f => {
+                const el = document.getElementById(f.id);
+                if (!el) return;
+                const value = (el.value || '').toString().trim();
+                if (!value) {
+                    // Crear y mostrar mensaje inline
+                    const messageElement = document.createElement('div');
+                    messageElement.id = `${f.id}-inline-error`;
+                    messageElement.className = 'invalid-feedback d-block';
+                    messageElement.style.fontSize = '0.95rem';
+                    messageElement.textContent = `Por favor, ingrese el ${f.label}`;
+                    el.classList.add('is-invalid');
+                    // Insert after the input
+                    if (el.parentNode) el.parentNode.appendChild(messageElement);
+                    if (!firstInvalid) firstInvalid = el;
+                }
+            });
+
+            if (firstInvalid) {
+                // Focus en primer campo inválido
+                firstInvalid.focus();
                 return;
             }
 
             // Validaciones específicas usando la función mejorada
             const validationResult = validateUserDataEnhanced(userData);
             if (!validationResult.isValid) {
-                Swal.fire({
-                    title: 'Datos incompletos o inválidos',
-                    html: `<ul class="text-start">${validationResult.errors.map(error => `<li>${error}</li>`).join('')}</ul>`,
-                    icon: 'error',
-                    confirmButtonText: 'OK'
+                // Mostrar errores detallados inline para cada campo relacionado cuando sea posible
+                // Primero, mapear mensajes genéricos a campos conocidos
+                validationResult.errors.forEach(err => {
+                    const lower = err.toLowerCase();
+                    if (lower.includes('nombre')) showSimpleFieldError('nombre', err);
+                    else if (lower.includes('apellido')) showSimpleFieldError('apellido', err);
+                    else if (lower.includes('email')) showSimpleFieldError('email', err);
+                    else if (lower.includes('cédula') || lower.includes('cedula')) showSimpleFieldError('cedula', err);
+                    else if (lower.includes('teléfono') || lower.includes('telefono')) showSimpleFieldError('telefono', err);
+                    else if (lower.includes('contraseña') || lower.includes('contrase')) showSimpleFieldError('password', err);
                 });
+                // Focus first invalid if exists
+                const anyInvalid = document.querySelector('.is-invalid');
+                if (anyInvalid) anyInvalid.focus();
                 return;
             }
 
@@ -173,7 +215,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     
     // Validación para teléfono (solo números, máximo 10)
-                            // Fallback: Registrar nuevo usuario en localStorage
+    const telefonoInput = document.getElementById('telefono');
     if (telefonoInput) {
         telefonoInput.addEventListener('input', function() {
             this.value = this.value.replace(/\D/g, '').substring(0, 10);
@@ -340,6 +382,22 @@ function hideFieldError(input, messageElement) {
     messageElement.style.display = 'none';
 }
 
+// Mostrar un mensaje simple inline para un campo (crea el elemento si no existe)
+function showSimpleFieldError(fieldId, message) {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+    // eliminar cualquier mensaje previo con id diferente (limpieza ligera)
+    const existing = document.getElementById(`${fieldId}-inline-error`);
+    if (existing) existing.remove();
+    const messageElement = document.createElement('div');
+    messageElement.id = `${fieldId}-inline-error`;
+    messageElement.className = 'invalid-feedback d-block';
+    messageElement.style.fontSize = '0.95rem';
+    messageElement.textContent = message;
+    input.classList.add('is-invalid');
+    if (input.parentNode) input.parentNode.appendChild(messageElement);
+}
+
 // === VALIDACIÓN MEJORADA DE DATOS DE USUARIO ===
 
 // Función mejorada para validar todos los datos del usuario
@@ -347,13 +405,14 @@ function validateUserDataEnhanced(userData) {
     const errors = [];
     
     // Validar nombre
-    if (!userData.nombre || userData.nombre.length < 2) {
-        errors.push('El nombre debe tener al menos 2 caracteres');
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+    if (!userData.nombre || userData.nombre.length < 2 || !nameRegex.test(userData.nombre)) {
+        errors.push('El nombre debe tener al menos 2 caracteres y solo letras');
     }
     
     // Validar apellido
-    if (!userData.apellido || userData.apellido.length < 2) {
-        errors.push('El apellido debe tener al menos 2 caracteres');
+    if (!userData.apellido || userData.apellido.length < 2 || !nameRegex.test(userData.apellido)) {
+        errors.push('El apellido debe tener al menos 2 caracteres y solo letras');
     }
     
     // Validar email
@@ -775,7 +834,36 @@ function extractApiError(err) {
         if (parsed && parsed.error) return parsed.error;
     } catch (e) {}
     // fallback to err.message or toString
-    return err.message || String(err);
+    const raw = (err.message || String(err) || '').toString();
+    const lower = raw.toLowerCase();
+
+    // Map common English backend messages to Spanish for a better UX
+    if (lower.includes('email already exists') || lower.includes('email already in use') || lower.includes('duplicate key') || lower.includes('email exists')) {
+        return 'Email ya existe';
+    }
+    if (lower.includes('user already exists') || lower.includes('username already exists')) {
+        return 'El usuario ya existe';
+    }
+    if (lower.includes('invalid') && lower.includes('email')) {
+        return 'Email inválido';
+    }
+    if (lower.includes('validation failed')) {
+        return 'Error de validación en los datos enviados';
+    }
+
+    // If message looks like JSON with 'message' field, try to extract it
+    try {
+        const parsed2 = JSON.parse(raw);
+        if (parsed2 && parsed2.message) return parsed2.message;
+        if (parsed2 && parsed2.error) return parsed2.error;
+    } catch (e) {
+        // ignore
+    }
+
+    // default fallback (keep original but capitalized first letter)
+    const fallback = raw.trim();
+    if (!fallback) return null;
+    return fallback.charAt(0).toUpperCase() + fallback.slice(1);
 }
 
 function escapeHtml(unsafe) {

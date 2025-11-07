@@ -29,14 +29,18 @@ document.addEventListener("DOMContentLoaded", async function() {
     cargarCarrito();
     updateUserInterface();
     
-    // Asegurar que productManager existe y está inicializado
+    // Asegurar que productManager existe y está inicializado (si la clase ProductManager está disponible)
     if (typeof productManager === 'undefined') {
-        console.log('📦 Inicializando productManager...');
-        // Assign to the declared global variable AND mirror to window so
-        // other scripts referencing either `productManager` or `window.productManager`
-        // will work without race conditions.
-        productManager = new ProductManager();
-        window.productManager = productManager;
+        if (typeof ProductManager !== 'undefined') {
+            console.log('📦 Inicializando productManager...');
+            // Assign to the declared global variable AND mirror to window so
+            // other scripts referencing either `productManager` or `window.productManager`
+            // will work without race conditions.
+            productManager = new ProductManager();
+            window.productManager = productManager;
+        } else {
+            console.log('ℹ️ ProductManager class no disponible en esta página — omitiendo inicialización');
+        }
     }
 
     // Preferir cargar productos desde la API (Atlas) antes de renderizar
@@ -75,14 +79,64 @@ document.addEventListener("DOMContentLoaded", async function() {
     // Inicializar búsqueda
     initializeSearch();
 
+    // Inicializar ordenamiento
+    const sortSelectInit = document.getElementById('sort-select');
+    if (sortSelectInit) {
+        sortSelectInit.addEventListener('change', () => {
+            // if a search is active, re-run search so results get sorted as well
+            const searchInput = document.getElementById('search-input');
+            if (searchInput && searchInput.value.trim()) {
+                searchProducts(searchInput.value.trim());
+            } else {
+                loadProductsFromManager();
+            }
+        });
+    }
+
+    // Inicializar selector de categorías (se cargará desde la API)
+    try {
+        if (typeof initializeCategories === 'function') {
+            await initializeCategories();
+        }
+    } catch (err) {
+        console.warn('initializeCategories falló en init:', err);
+    }
+
     // NOTE: Removed automatic notification permission requests per user preference.
 
     // Evento para confirmar el carrito
     const confirmarBtn = document.getElementById("confirmar-productos");
     if (confirmarBtn) {
         confirmarBtn.addEventListener("click", function(event) {
+            // If this is a plain link (<a href="...">), prefer normal navigation
+            if (confirmarBtn.tagName === 'A' && confirmarBtn.getAttribute('href')) {
+                // If user not logged in, block navigation and prompt to login
+                if (localStorage.getItem('userLoggedIn') !== 'true') {
+                    event.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: '🔒 Necesitas iniciar sesión',
+                            text: 'Para realizar una compra debes iniciar sesión',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Iniciar sesión',
+                            cancelButtonText: 'Cancelar'
+                        }).then((r) => {
+                            if (r.isConfirmed) window.location.href = 'login.html';
+                        });
+                    } else {
+                        if (confirm('Necesitas iniciar sesión. Ir a login?')) window.location.href = 'login.html';
+                    }
+                    return;
+                }
+
+                // Logged in -> allow default navigation to the href (e.g., checkout.html)
+                return;
+            }
+
+            // Otherwise, this is a JS-driven button: prevent default and run the JS checkout flow
             event.preventDefault();
-            console.log('🛒 Checkout button clicked from main.js');
+            console.log('🛒 Checkout button clicked from main.js (JS-driven)');
             if (typeof window.enviarCarrito === 'function') {
                 window.enviarCarrito();
             } else if (typeof window.testCheckout === 'function') {
@@ -129,18 +183,7 @@ document.addEventListener("DOMContentLoaded", async function() {
         });
     }
 
-    // Agregar botones de filtro por categoría si existe el contenedor
-    const filtersContainer = document.getElementById('category-filters');
-    if (filtersContainer) {
-        filtersContainer.innerHTML = `
-            <div class="btn-group mb-3" role="group">
-                <button type="button" class="btn btn-outline-primary active" onclick="filterByCategory('all')">Todos</button>
-                <button type="button" class="btn btn-outline-primary" onclick="filterByCategory('electrodomesticos')">Electrodomésticos</button>
-                <button type="button" class="btn btn-outline-primary" onclick="filterByCategory('cocina')">Cocina</button>
-                <button type="button" class="btn btn-outline-primary" onclick="filterByCategory('hogar')">Hogar</button>
-            </div>
-        `;
-    }
+    // Category UI removed — no rendering or sizing logic present.
 });
 
 // --- Funciones de gestión de productos mejoradas ---
@@ -153,7 +196,7 @@ function loadProductsFromManager() {
         // Forzar recarga de productos
         productManager.syncWithAdminProducts();
         
-        const products = productManager.getAllProducts();
+    let products = productManager.getAllProducts();
         console.log('📋 Productos obtenidos:', products.length);
         
         // Log del stock de algunos productos para debugging
@@ -180,6 +223,8 @@ function loadProductsFromManager() {
                     </div>
                 `;
             } else {
+                // apply current sort selection
+                products = applySort(products);
                 products.forEach(product => {
                     const productCard = createProductCard(product);
                     productContainer.appendChild(productCard);
@@ -214,32 +259,43 @@ function loadProductsFromManager() {
 // Crear tarjeta de producto
 function createProductCard(product) {
     const card = document.createElement('div');
-    card.className = 'col-md-4 mb-4';
-    
+    // responsive: 2 cols on xs, 3 on md, 4 on lg
+    card.className = 'col-6 col-md-4 col-lg-3 mb-4';
+    // prepare display values
+    const price = Number(product.precio) || 0;
+    const descuento = Number(product.descuento) || 0;
+    const hasDiscount = descuento > 0;
+    const discountedPrice = hasDiscount ? +(price * (1 - descuento / 100)) : price;
+    const shortDesc = (product.descripcion || '').length > 110 ? (product.descripcion || '').substring(0, 107).trim() + '...' : (product.descripcion || '');
+
     card.innerHTML = `
-        <div class="card product-card h-100">
-            <img src="${product.imagen}" class="card-img-top" alt="${product.nombre}" style="height: 250px; object-fit: cover;">
+        <div class="card product-card h-100 position-relative">
+            ${hasDiscount ? `<div class="discount-badge">-${descuento}%</div>` : ''}
+            <img src="${product.imagen}" class="card-img-top product-image" alt="${product.nombre}">
             <div class="card-body d-flex flex-column">
                 <h5 class="card-title">${product.nombre}</h5>
-                <p class="card-text">${product.descripcion}</p>
+                <p class="card-text">${shortDesc}</p>
                 <p class="text-muted"><small>${product.capacidad || 'N/A'}</small></p>
                 <div class="mt-auto">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="h5 text-primary mb-0">$${product.precio.toFixed(2)}</span>
+                        <div>
+                            ${hasDiscount ? `<div class="price-old text-muted small">$${price.toFixed(2)}</div>
+                            <div class="h5 text-primary mb-0">$${discountedPrice.toFixed(2)}</div>` : `<div class="h5 text-primary mb-0">$${price.toFixed(2)}</div>`}
+                        </div>
                         <small class="text-muted">
                             <span class="badge ${product.stock <= 5 ? 'bg-danger' : product.stock <= 10 ? 'bg-warning text-dark' : 'bg-success'}">
                                 Stock: ${product.stock || 0}
                             </span>
                         </small>
                     </div>
-                                        <div class="d-grid gap-2">
-                                            <button class="btn btn-outline-secondary" onclick="openProductModal('${product.id || product._id}')">Ver más</button>
-                                            <button class="btn btn-primary" 
-                                                            onclick="agregarAlCarrito('${product.id}', '${product.nombre}', ${product.precio}, '${product.imagen}', '${product.capacidad || 'N/A'}')"
-                                                            ${(product.stock || 0) <= 0 ? 'disabled' : ''}>
-                                                    ${(product.stock || 0) <= 0 ? 'Sin Stock' : 'Agregar al Carrito'}
-                                            </button>
-                                        </div>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-secondary" onclick="openProductModal('${product.id || product._id}')">Ver más</button>
+                        <button class="btn btn-primary" 
+                                onclick="agregarAlCarrito('${product.id}', '${product.nombre}', ${discountedPrice.toFixed(2)}, '${product.imagen}', '${product.capacidad || 'N/A'}')"
+                                ${(product.stock || 0) <= 0 ? 'disabled' : ''}>
+                                ${(product.stock || 0) <= 0 ? 'Sin Stock' : 'Agregar al Carrito'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -274,6 +330,8 @@ function displaySearchResults(products) {
                 </div>
             `;
         } else {
+            // apply current sort selection
+            products = applySort(products);
             products.forEach(product => {
                 const productCard = createProductCard(product);
                 productContainer.appendChild(productCard);
@@ -282,19 +340,64 @@ function displaySearchResults(products) {
     }
 }
 
+// Apply sorting based on the select control
+function applySort(products) {
+    try {
+        const sel = document.getElementById('sort-select');
+        if (!sel || !Array.isArray(products)) return products;
+        const val = sel.value || 'default';
+        const copy = products.slice();
+        switch (val) {
+            case 'alpha-asc':
+                copy.sort((a,b) => (a.nombre||'').toString().localeCompare((b.nombre||'').toString(), 'es'));
+                break;
+            case 'alpha-desc':
+                copy.sort((a,b) => (b.nombre||'').toString().localeCompare((a.nombre||'').toString(), 'es'));
+                break;
+            case 'price-asc':
+                copy.sort((a,b) => (Number(a.precio)||0) - (Number(b.precio)||0));
+                break;
+            case 'price-desc':
+                copy.sort((a,b) => (Number(b.precio)||0) - (Number(a.precio)||0));
+                break;
+            case 'stock-asc':
+                copy.sort((a,b) => (Number(a.stock)||0) - (Number(b.stock)||0));
+                break;
+            case 'stock-desc':
+                copy.sort((a,b) => (Number(b.stock)||0) - (Number(a.stock)||0));
+                break;
+            default:
+                return copy;
+        }
+        return copy;
+    } catch (err) {
+        console.warn('applySort error', err);
+        return products;
+    }
+}
+
 // Filtrar productos por categoría
-function filterByCategory(category) {
+function filterByCategory(category, btnEl) {
     if (typeof productManager !== 'undefined') {
         const products = category === 'all' ? 
             productManager.getAllProducts() : 
             productManager.getProductsByCategory(category);
         displaySearchResults(products);
     }
-    
-    // Actualizar botones activos
-    const buttons = document.querySelectorAll('#category-filters .btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+
+    // Actualizar botones activos (solo si el contenedor de filtros existe)
+    const filtersEl = document.getElementById('category-filters');
+    if (filtersEl) {
+        const buttons = filtersEl.querySelectorAll('.btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        if (btnEl && btnEl.classList) {
+            btnEl.classList.add('active');
+        } else {
+            // fallback: try to find button by data-category attribute
+            const fallback = filtersEl.querySelector(`.btn[data-category="${CSS.escape(category)}"]`);
+            if (fallback) fallback.classList.add('active');
+        }
+    }
 }
 
 // Inicializar barra de búsqueda
@@ -325,6 +428,54 @@ function initializeSearch() {
     }
 }
 
+// Cargar categorías desde la API y poblar el select #category-select
+async function initializeCategories() {
+    const select = document.getElementById('category-select');
+    if (!select) return;
+
+    // Asegurar la opción por defecto
+    select.innerHTML = '<option value="all">Categoría: Todas</option>';
+
+    try {
+        let categories = [];
+        if (window.api && typeof window.api.getCategories === 'function') {
+            categories = await window.api.getCategories();
+        } else {
+            // Fallback directo por si no está el cliente
+            const res = await fetch('/api/categories');
+            if (res.ok) categories = await res.json();
+        }
+
+        if (!Array.isArray(categories)) categories = [];
+
+        categories.forEach(cat => {
+            if (!cat) return;
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.warn('No se pudieron cargar categorías:', err);
+    }
+
+    // Listener para filtrar por categoría
+    select.addEventListener('change', () => {
+        const val = select.value || 'all';
+        if (val === 'all') {
+            // si hay búsqueda activa, respetarla
+            const searchInput = document.getElementById('search-input');
+            if (searchInput && searchInput.value.trim()) {
+                searchProducts(searchInput.value.trim());
+            } else {
+                loadProductsFromManager();
+            }
+        } else {
+            filterByCategory(val);
+        }
+    });
+}
+
 // Función para mostrar historial de compras
 function showPurchaseHistory() {
     if (localStorage.getItem('userLoggedIn') !== 'true') {
@@ -337,7 +488,7 @@ function showPurchaseHistory() {
         return;
     }
 
-    if (typeof checkoutManager !== 'undefined') {
+    if (typeof checkoutManager !== 'undefined' && checkoutManager && typeof checkoutManager.getUserOrders === 'function') {
         const orders = checkoutManager.getUserOrders();
         
         if (orders.length === 0) {
@@ -381,27 +532,7 @@ function showPurchaseHistory() {
 
 function agregarAlCarrito(id, nombre, precio, imagen, mililitros) {
     console.log('🛒 agregarAlCarrito called with:', { id, nombre, precio, tipo: typeof id });
-    
-    // Verificar si el usuario está logueado
-    if (localStorage.getItem('userLoggedIn') !== 'true') {
-        Swal.fire({
-            title: 'Necesitas una cuenta',
-            text: 'Para comprar productos necesitas iniciar sesión o crear una cuenta',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Iniciar Sesión',
-            cancelButtonText: 'Crear Cuenta',
-            showDenyButton: true,
-            denyButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = 'login.html';
-            } else if (result.dismiss === Swal.DismissReason.cancel) {
-                window.location.href = 'signUp.html';
-            }
-        });
-        return;
-    }
+    // NOTE: Allow adding to cart even when not logged in. Login will be enforced at checkout.
 
     // Verificar stock disponible usando productManager
     if (typeof productManager !== 'undefined') {
@@ -509,7 +640,8 @@ function cargarCarrito() {
                     <a href="signUp.html" class="btn btn-2">Crear Cuenta</a>
                 </div>
             `;
-            document.getElementById("total-price").innerText = "$0.00";
+            const totalPriceEl = document.getElementById("total-price");
+            if (totalPriceEl) totalPriceEl.innerText = "$0.00";
             return;
         }
     }
@@ -522,8 +654,9 @@ function cargarCarrito() {
     cartItemsContainer.innerHTML = "";
 
     if (carrito.length === 0) {
-        cartItemsContainer.innerHTML = `<p class="empty-cart">Tu carrito está vacío.</p>`;
-        document.getElementById("total-price").innerText = "$0.00";
+    cartItemsContainer.innerHTML = `<p class="empty-cart">Tu carrito está vacío.</p>`;
+    const totalPriceEl2 = document.getElementById("total-price");
+    if (totalPriceEl2) totalPriceEl2.innerText = "$0.00";
         return;
     }
 
@@ -550,7 +683,8 @@ function cargarCarrito() {
         `;
     });
 
-    document.getElementById("total-price").innerText = `$${totalPrice.toFixed(2)}`;
+    const totalPriceEl3 = document.getElementById("total-price");
+    if (totalPriceEl3) totalPriceEl3.innerText = `$${totalPrice.toFixed(2)}`;
 }
 
 function actualizarCantidad(index, cambio) {
@@ -629,6 +763,40 @@ function updateUserInterface() {
     if (!userDropdownButton || !dropdownMenu) return;
     
     if (localStorage.getItem('userLoggedIn') === 'true') {
+        // If the dropdown markup for logged-in users is missing (some pages render the "not-logged-in" HTML by default),
+        // replace it with the logged-in template so we can populate the fields below.
+        if (!document.getElementById('userEmail') || !document.getElementById('userNombre') || !document.getElementById('userApellido')) {
+            dropdownMenu.innerHTML = `
+                <div class="dropdown-header d-flex align-items-center mb-3">
+                    <i class="fa-solid fa-user-circle fa-2x text-primary me-2"></i>
+                    <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
+                </div>
+                <div class="user-info bg-light rounded-2 p-2 mb-3">
+                    <div class="mb-2">
+                      <small class="text-muted"><i class="fa-solid fa-envelope me-1"></i>Correo:</small>
+                      <div class="fw-semibold" id="userEmail">--</div>
+                    </div>
+                    <div class="mb-2">
+                      <small class="text-muted"><i class="fa-solid fa-user me-1"></i>Nombre:</small>
+                      <div class="fw-semibold" id="userNombre">--</div>
+                    </div>
+                    <div class="mb-0">
+                      <small class="text-muted"><i class="fa-solid fa-id-card me-1"></i>Apellido:</small>
+                      <div class="fw-semibold" id="userApellido">--</div>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item rounded-2 py-2" href="profile.html">
+                    <i class="fa-solid fa-user-pen text-primary me-2"></i>Editar cuenta
+                </a>
+                <a class="dropdown-item rounded-2 py-2" href="compras.html">
+                    <i class="fa-solid fa-shopping-bag text-success me-2"></i>Mis Compras
+                </a>
+                <a class="dropdown-item rounded-2 py-2" href="#" onclick="logout()">
+                    <i class="fa-solid fa-right-from-bracket text-danger me-2"></i>Cerrar Sesión
+                </a>
+            `;
+        }
         // Ensure localStorage has up-to-date user fields if token is available
         // (helps when auth response doesn't include all fields or after server-side changes)
         (async function ensureUserLocalStorage() {
@@ -731,7 +899,7 @@ function updateUserInterface() {
         dropdownMenu.innerHTML = `
             <div class="dropdown-header d-flex align-items-center mb-3">
                 <i class="fa-solid fa-user-circle fa-2x text-secondary me-2"></i>
-                <h6 class="mb-0 fw-bold">Bienvenido a El Valle</h6>
+                <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
             </div>
             <div class="alert alert-info rounded-2 mb-3">
                 <small class="mb-0">Para comprar productos necesitas una cuenta</small>
@@ -749,6 +917,45 @@ function updateUserInterface() {
 
 // Función para cerrar sesión
 function logout() {
+    // Fallback si Swal no está disponible
+    const performLogout = () => {
+        // Limpiar todos los datos del usuario
+        localStorage.removeItem('userLoggedIn');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userNombre');
+        localStorage.removeItem('userApellido');
+        localStorage.removeItem('userCedula');
+        localStorage.removeItem('userTelefono');
+        localStorage.removeItem('userPhoto'); // Limpiar foto de perfil
+        localStorage.removeItem('loginTimestamp');
+        localStorage.removeItem('carrito'); // Limpiar carrito al cerrar sesión
+
+        // Actualizar interfaz
+        try { updateUserInterface(); } catch (e) { console.warn('updateUserInterface missing', e); }
+        try { actualizarCarritoUI(); } catch (e) { console.warn('actualizarCarritoUI missing', e); }
+
+        // Recargar carrito si estamos en la página del carrito
+        try { if (typeof cargarCarrito === 'function') cargarCarrito(); } catch (e) { /* ignore */ }
+
+        // Redirigir a página principal si estamos en páginas protegidas
+        const currentPage = window.location.pathname.split('/').pop();
+        const protectedPages = ['cart.html', 'compras.html'];
+        if (protectedPages.includes(currentPage)) {
+            window.location.href = 'index.html';
+        }
+    };
+
+    if (typeof Swal === 'undefined') {
+        // Use native confirm as fallback
+        const ok = confirm('¿Cerrar sesión?\nSe eliminará tu carrito actual y tendrás que iniciar sesión nuevamente');
+        if (ok) {
+            performLogout();
+            try { alert('Sesión cerrada'); } catch(e){}
+        }
+        return;
+    }
+
+    // Use Swal if available
     Swal.fire({
         title: '¿Cerrar sesión?',
         text: 'Se eliminará tu carrito actual y tendrás que iniciar sesión nuevamente',
@@ -758,39 +965,12 @@ function logout() {
         cancelButtonText: 'Cancelar'
     }).then((result) => {
         if (result.isConfirmed) {
-            // Limpiar todos los datos del usuario
-            localStorage.removeItem('userLoggedIn');
-            localStorage.removeItem('userEmail');
-            localStorage.removeItem('userNombre');
-            localStorage.removeItem('userApellido');
-            localStorage.removeItem('userCedula');
-            localStorage.removeItem('userTelefono');
-            localStorage.removeItem('userPhoto'); // Limpiar foto de perfil
-            localStorage.removeItem('loginTimestamp');
-            localStorage.removeItem('carrito'); // Limpiar carrito al cerrar sesión
-            
+            performLogout();
             Swal.fire({
                 title: 'Sesión cerrada',
                 text: 'Has cerrado sesión exitosamente',
                 icon: 'success',
                 confirmButtonText: 'OK'
-            }).then(() => {
-                // Actualizar interfaz
-                updateUserInterface();
-                actualizarCarritoUI();
-                
-                // Recargar carrito si estamos en la página del carrito
-                if (typeof cargarCarrito === 'function') {
-                    cargarCarrito();
-                }
-                
-                // Redirigir a página principal si estamos en páginas protegidas
-                const currentPage = window.location.pathname.split('/').pop();
-                const protectedPages = ['cart.html', 'compras.html'];
-                
-                if (protectedPages.includes(currentPage)) {
-                    window.location.href = 'index.html';
-                }
             });
         }
     });

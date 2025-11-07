@@ -13,6 +13,7 @@ const debugRouter = require('./routes/debug');
 const ordersRouter = require('./routes/orders');
 const usersRouter = require('./routes/users');
 const reviewsRouter = require('./routes/reviews');
+const categoriesRouter = require('./routes/categories');
 const Product = require('./models/Product');
 const User = require('./models/User');
 const bcrypt = require('bcryptjs');
@@ -73,6 +74,7 @@ app.use('/api/checkout', checkoutRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/categories', categoriesRouter);
 // Debug routes (only enabled when DEBUG_API=true in env)
 app.use('/api/debug', debugRouter);
 

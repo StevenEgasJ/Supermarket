@@ -30,10 +30,10 @@
                 </button>
                 <!-- Dropdown Menu Mejorado -->
                 <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 p-3" aria-labelledby="userDropdown" style="min-width: 280px; margin-top: 8px;">
-                  <div class="dropdown-header d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-user-circle fa-2x text-primary me-2"></i>
-                    <h6 class="mb-0 fw-bold">Perfil de Usuario</h6>
-                  </div>
+                                    <div class="dropdown-header d-flex align-items-center mb-3">
+                                        <i class="fa-solid fa-user-circle fa-2x text-primary me-2"></i>
+                                        <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
+                                    </div>
                   <div class="user-info bg-light rounded-2 p-2 mb-3">
                     <div class="mb-2">
                       <small class="text-muted"><i class="fa-solid fa-envelope me-1"></i>Correo:</small>
@@ -169,6 +169,11 @@
     <script>
         // Cargar historial de compras al cargar la página
         document.addEventListener("DOMContentLoaded", function() {
+            // Force refresh of user UI in case other scripts changed localStorage
+            try {
+                if (typeof updateUserInterface === 'function') updateUserInterface();
+            } catch (e) { console.warn('Could not call updateUserInterface on compras.html init', e); }
+
             loadUserOrders();
         });
 
@@ -196,8 +201,8 @@
                 // Intentar obtener órdenes de múltiples fuentes
                 console.log('👤 Email del usuario:', userEmail);
                 
-                // 1. Intentar desde checkoutManager
-                if (typeof checkoutManager !== 'undefined' && checkoutManager.getUserOrders) {
+                // 1. Intentar desde checkoutManager (solo si existe y expone la función)
+                if (typeof checkoutManager !== 'undefined' && checkoutManager && typeof checkoutManager.getUserOrders === 'function') {
                     try {
                         orders = checkoutManager.getUserOrders();
                         console.log('✅ Órdenes del checkoutManager:', orders.length);
@@ -391,14 +396,45 @@
         // Ver detalles de una orden
         function viewOrder(orderId) {
             if (typeof checkoutManager !== 'undefined') {
-                const orders = checkoutManager.getUserOrders();
-                const order = orders.find(o => (o.id || o.numeroOrden) === orderId);
-                
-                if (order) {
-                    checkoutManager.showInvoice(order);
-                } else {
-                    Swal.fire('Error', 'Pedido no encontrado', 'error');
+                // Prefer checkoutManager when available, otherwise fall back to localStorage lookup
+                if (typeof checkoutManager !== 'undefined' && checkoutManager && typeof checkoutManager.getUserOrders === 'function') {
+                    try {
+                        const orders = checkoutManager.getUserOrders();
+                        const order = orders.find(o => (o.id || o.numeroOrden) === orderId);
+                        if (order) {
+                            checkoutManager.showInvoice(order);
+                            return;
+                        }
+                    } catch (err) {
+                        console.warn('Error obteniendo orden desde checkoutManager:', err);
+                    }
                 }
+
+                // Fallback: buscar en localStorage
+                (async function(){
+                    try {
+                        const userEmail = localStorage.getItem('userEmail');
+                        let orders = JSON.parse(localStorage.getItem(`orders_${userEmail}`) || '[]');
+                        const comprasHistorial = JSON.parse(localStorage.getItem('comprasHistorial') || '[]');
+                        orders = [...orders, ...comprasHistorial.filter(o => o.cliente && o.cliente.email === userEmail)];
+                        const order = orders.find(o => (o.id || o.numeroOrden) === orderId);
+                        if (order) {
+                            if (typeof checkoutManager !== 'undefined' && checkoutManager && typeof checkoutManager.showInvoice === 'function') {
+                                checkoutManager.showInvoice(order);
+                            } else if (typeof window.checkoutShowInvoice === 'function') {
+                                window.checkoutShowInvoice(order);
+                            } else {
+                                // As last resort, show the invoice via download or alert
+                                window.downloadInvoicePDF ? window.downloadInvoicePDF(order) : Swal.fire('Info', 'Orden encontrada pero no se puede mostrar el detalle.', 'info');
+                            }
+                        } else {
+                            Swal.fire('Error', 'Pedido no encontrado', 'error');
+                        }
+                    } catch (err) {
+                        console.error('Error fallback viewOrder:', err);
+                        Swal.fire('Error', 'No se pudo obtener la orden', 'error');
+                    }
+                })();
             } else {
                 Swal.fire('Error', 'Sistema no disponible', 'error');
             }

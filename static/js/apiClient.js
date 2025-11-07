@@ -42,6 +42,7 @@
 
   window.api = {
     getProducts: () => apiFetch('/products'),
+  getCategories: () => apiFetch('/categories'),
     getProduct: (id) => apiFetch(`/products/${id}`),
     createProduct: (payload) => apiFetch('/products', { method: 'POST', body: payload }),
     updateProduct: (id, payload) => apiFetch(`/products/${id}`, { method: 'PUT', body: payload }),

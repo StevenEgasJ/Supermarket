@@ -1,0 +1,75 @@
+/* Promotions layout - keeps both promo cards same visual size and responsive
+   Images are set to object-fit: contain so important parts are not cropped. */
+.promotions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+  align-items: stretch;
+}
+@media (max-width: 768px) { .promotions { grid-template-columns: 1fr; } }
+
+.promo-card {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+/* keep media area consistent size regardless of original image dims
+   Use object-fit: contain so the full image is visible (no important areas cropped) */
+.promo-media {
+  width: 100%;
+  aspect-ratio: 16/10; /* same visual area for both cards */
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  background: #f3f4f6;
+}
+
+.promo-body { padding: 1rem 1.25rem; display:flex; flex-direction:column; gap:0.5rem; }
+.promo-title { font-size: 1.25rem; font-weight:700; margin:0; color:#0f172a; }
+.promo-sub { color:#475569; margin:0; }
+.promo-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  background: #10b981;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  /* default (seasonal) CTA is smaller; daily CTA will override to be larger */
+  width: 140px; /* seasonal button size */
+  box-sizing: border-box;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.carousel-dots { display:flex; gap:.5rem; justify-content:center; margin-top:.6rem }
+.carousel-dot { width:10px; height:10px; border-radius:50%; background:#e6e9ee; cursor:pointer }
+.carousel-dot.active { background:#0f172a }
+
+/* small adaptive tweaks to ensure visual balance */
+.promo-card img.promo-media { max-width: 100%; height: auto; }
+
+/* Responsive: on small screens let CTAs be fluid and stack naturally */
+@media (max-width: 480px) {
+  .promo-cta {
+    width: auto; /* allow full-width/auto sizing on small viewports */
+    min-width: 0;
+    padding: 0.55rem 0.9rem;
+    align-self: stretch;
+  }
+}
+
+/* Give the daily promo CTA ('Comprar ahora') the larger width that seasonal had */
+#promo-today .promo-cta {
+  width: 180px;
+}

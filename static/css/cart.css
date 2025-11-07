@@ -52,6 +52,25 @@ body {
     background-color: var(--card);
 }
 
+/* Ajustes visuales: hacer el panel del carrito un poco más prominente a la izquierda
+   y el resumen del pedido más marcado a la derecha */
+.cart-box { padding-left: 1rem; padding-right: 1rem; }
+.summary-box { padding-left: 1rem; padding-right: 1rem; }
+.cart-box, .summary-box { min-height: 420px; }
+/* remove horizontal translate shifts so cards can occupy available width */
+.cart-box { transform: none; }
+.summary-box { transform: none; }
+
+/* Estilos específicos para estado "carrito vacío" */
+.cart-box.empty-state {
+    max-width: 640px;
+    margin: 0 auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+.cart-box.empty-state #cart-items .card { display: block; margin: 0 auto; max-width: 520px; }
+.cart-box.empty-state .card-body { padding: 2rem; }
+
 .cart-item {
     display: flex;
     flex-wrap: wrap;
@@ -63,6 +82,68 @@ body {
     max-width: 9rem;
     height: auto;
 }
+
+quantity-box { display: inline-flex; align-items: center; }
+quantity-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.08); background:#fff; }
+qty-display { min-width: 28px; display:inline-block; text-align:center; }
+.remove-btn { background: transparent; border: none; color: #c82333; font-size: 0.95rem; padding: 0; margin-top: 0.25rem; cursor: pointer; }
+.remove-btn:hover { text-decoration: underline; color: #a71d2a; }
+
+.shipping-option { border:1px solid rgba(0,0,0,0.08); padding:0.9rem; border-radius:10px; cursor:pointer; background: #eef7ff; transition: box-shadow .18s ease, transform .12s ease, background .18s ease, color .12s ease; }
+.shipping-option:hover { box-shadow: 0 8px 22px rgba(0,0,0,0.08); transform: translateY(-2px); background: #e6f3ff; }
+.shipping-option.selected { border-color:#0b5ed7; background:#bfe6ff; box-shadow:0 10px 28px rgba(11,94,215,0.12); color: #073763; }
+.shipping-option .small { margin:0.25rem 0 0 0; }
+
+/* keep native radio visually hidden but rely on the card contrast and selected styles */
+.shipping-option input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+
+/* quick-summary card styling */
+.quick-summary { background: var(--card); }
+.quick-summary .card-body { padding: 1rem; }
+.quick-summary .fw-semibold { font-weight: 600; }
+
+/* Emphasize subtotal and totals visually (use consistent sizes inside quick-summary)
+   We'll keep larger weights but make labels and values the same font-size as requested. */
+#total-price, #summary-subtotal, #summary-total { font-size: 1.8rem; font-weight: 900; color: var(--text-color); }
+.quick-summary .card-body .small.text-muted,
+.quick-summary .card-body .subtotal-value,
+.quick-summary .card-body .shipping-value,
+.quick-summary .card-body .total-value {
+    font-size: 1rem; /* same size for label and amount */
+}
+.quick-summary .subtotal-value, .quick-summary .shipping-value { font-weight: 600; }
+.quick-summary .total-value { font-weight: 700; }
+/* Slightly larger padding to give values room */
+.quick-summary .card-body { padding: 1rem 1.2rem; }
+@media (max-width: 576px){
+    #quick-subtotal, #total-price, #summary-subtotal, #quick-total, #summary-total {
+        font-size: 1.05rem;
+    }
+    .quick-summary .card-body { padding: 0.8rem; }
+}
+
+/* Remove extra lateral padding so the cart stretches to the container edges */
+.cart-layout-row { padding-left: 0; padding-right: 0; }
+
+/* Narrow product list so items appear more compact (slightly) and center it */
+#cart-items { max-width: 96%; width: 96%; margin: 0 auto; }
+
+/* When the cart is empty, make the left column span full width and center its content */
+.empty-centered-col {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+}
+
+/* Make main subtotal label/value in the left column bigger */
+#total-price { font-size: 1.8rem; font-weight: 900; }
+
+/* Make quick-summary visually wider and more prominent */
+.card.quick-summary { border: 1px solid rgba(13,110,253,0.08); background: var(--card); }
+.card.quick-summary .subtotal-value { color: #111; }
+.card.quick-summary .total-value { color: #0d6efd; font-size: 2.2rem; }
+.card.quick-summary .shipping-value { color: #333; }
 
 h1 {
     font-family: 'Pacifico', cursive;
@@ -142,14 +223,15 @@ h1 {
 .remove-btn {
     background: transparent;
     border: none;
-    color: var(--remove-btn);
-    font-size: 1.5rem;
+    color: #c82333;
+    font-size: 0.95rem;
     cursor: pointer;
-    transition: color 0.3s;
+    transition: color 0.15s ease;
 }
 
 .remove-btn:hover {
-    color: var(--remove-hover);
+    color: #a71d2a;
+    text-decoration: underline;
 }
 
 hr {
@@ -200,4 +282,21 @@ hr {
 
 .subtotal {
     background-color: var(--section-1);
+}
+
+/* Summary box styles */
+.summary-box { background: var(--card); }
+/* Make the hr inside quick-summary subtle and aligned with the card */
+.quick-summary hr { border: none; border-top: 1px solid rgba(0,0,0,0.14); margin: 0.6rem 0; }
+/* Make shipping options slightly contrast with background in dark mode */
+body.dark-mode .shipping-option { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.04); }
+.shipping-option { border-top: 1px dashed #e6e6e6; padding-top: 0.6rem; }
+.shipping-option:first-of-type { border-top: none; padding-top: 0; }
+.pickup-info { background: #eef7ff; padding: 8px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.06); }
+.shipping-option.selected .pickup-info { background: #bfe6ff; }
+.rewards { background: linear-gradient(180deg,#fff,#f8fafc); }
+.discount-negative { color: #ef4444; }
+
+@media (max-width: 991px){
+    .summary-box { margin-top: 1rem; }
 }

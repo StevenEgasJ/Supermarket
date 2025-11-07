@@ -84,3 +84,18 @@ body {
     border-radius: 10px;
 }
 
+/* Force navbar styles to match global site theme (override page-specific variables) */
+.navbar {
+    background-color: var(--nav-bg) !important;
+    padding: 0.5rem 0;
+}
+.navbar-nav .nav-link {
+    color: var(--link-color) !important;
+    transition: color 0.3s;
+    padding: 0.5rem 1rem;
+}
+.navbar-nav .nav-link:hover {
+    color: var(--hover-link-color) !important;
+    text-shadow: 0px 0px 10px rgba(255, 252, 221, 0.5);
+}
+

@@ -51,6 +51,7 @@ class ProductManager {
                     capacidad: p.capacidad || p.descripcion?.substring(0,50) || p.descripcion || 'N/A',
                     imagen: p.imagen || p.image || './static/img/producto.png',
                     descripcion: p.descripcion || p.description || p.nombre || '',
+                    descuento: p.descuento || p.discount || 0,
                     categoria: p.categoria || p.category || 'electrodomesticos',
                     stock: p.stock || 0,
                     fechaCreacion: p.fechaCreacion || p.createdAt || new Date().toISOString(),

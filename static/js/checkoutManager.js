@@ -1,5 +1,6 @@
 // Sistema de checkout mejorado con geolocalización, impuestos y facturación
-class CheckoutManager {
+// Guard class to avoid redeclaration when multiple versions are present
+window.CheckoutManager = window.CheckoutManager || class CheckoutManager {
     constructor() {
         this.currentLocation = null;
         this.TAX_RATE = 0.15; // 15% IVA Ecuador

@@ -1,0 +1,55 @@
+/* Product listing grid and image styles
+   - 4-column layout on large screens (col-lg-3)
+   - images use object-fit: contain to avoid cropping important areas
+   - consistent visual area for product media via aspect-ratio
+*/
+
+#products-container { margin-top: 1rem; }
+
+.product-card .card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-image {
+  width: 100%;
+  aspect-ratio: 4/3; /* controlled visual area */
+  object-fit: contain; /* do not crop the image */
+  object-position: center;
+  background: #f8fafc; /* subtle neutral background when image has whitespace */
+  padding: 8px; /* small padding to avoid edge-clipping when using contain */
+}
+
+/* Discount badge (ribbon) */
+.discount-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ef4444; /* red */
+  color: #fff;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+  z-index: 3;
+  font-size: 0.9rem;
+}
+
+.price-old { text-decoration: line-through; opacity: 0.8; }
+
+.product-card .card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Keep card footer/actions aligned */
+.product-card .mt-auto { margin-top: auto; }
+
+@media (min-width: 992px) {
+  /* ensure 4 columns on large screens; handled by Bootstrap classes too */
+  #products-container > .col-lg-3 { display: block; }
+}
+
+/* Category styles removed (per request) */

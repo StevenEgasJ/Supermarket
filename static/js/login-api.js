@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", function() {
+    console.log('[login-api] DOMContentLoaded');
     // Si ya está logueado, ir al index
     if (localStorage.getItem('userLoggedIn') === 'true') {
         window.location.href = "index.html";
@@ -6,22 +7,66 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     const loginForm = document.getElementById("loginForm");
-    if (!loginForm) return;
+    if (!loginForm) {
+        console.warn('[login-api] loginForm not found');
+        return;
+    }
+
+    console.log('[login-api] attaching submit listener to #loginForm');
+    // Inline validation helpers
+    function showFieldError(fieldId, message) {
+        try {
+            const f = document.getElementById(fieldId);
+            const fb = document.getElementById(fieldId + 'Feedback');
+            if (f) f.classList.add('is-invalid');
+            if (fb) fb.textContent = message;
+        } catch (e) { console.debug('showFieldError failed', e); }
+    }
+
+    function clearFieldError(fieldId) {
+        try {
+            const f = document.getElementById(fieldId);
+            const fb = document.getElementById(fieldId + 'Feedback');
+            if (f) f.classList.remove('is-invalid');
+            if (fb) fb.textContent = '';
+        } catch (e) { /* ignore */ }
+    }
+
+    // Clear errors on user input
+    ['email', 'password'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => clearFieldError(id));
+    });
 
     loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        console.log('[login-api] submit handler fired');
+        try {
         const email = document.getElementById("email").value.trim().toLowerCase();
         const password = document.getElementById("password").value;
 
-        // Validación básica
+        // Clear previous field errors
+        clearFieldError('email');
+        clearFieldError('password');
+
+        // Validación básica (inline)
         if (!email || !password) {
-            Swal.fire({ title: 'Campos requeridos', text: 'Por favor ingresa email y contraseña', icon: 'error', confirmButtonText: 'OK' });
+            if (!email) {
+                showFieldError('email', 'Por favor, ingrese correo electrónico');
+                const el = document.getElementById('email'); if (el) el.focus();
+            }
+            if (!password) {
+                showFieldError('password', 'Por favor, ingrese contraseña');
+                // focus password only if email is present
+                if (email) { const pel = document.getElementById('password'); if (pel) pel.focus(); }
+            }
             return;
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            Swal.fire({ title: 'Email inválido', text: 'Por favor ingresa un email válido', icon: 'error', confirmButtonText: 'OK' });
+            showFieldError('email', 'Por favor, ingrese un email válido');
+            const el = document.getElementById('email'); if (el) el.focus();
             return;
         }
 
@@ -74,6 +119,17 @@ document.addEventListener("DOMContentLoaded", function() {
                         window.location.href = 'index.html';
                         return;
                     }
+                    // If server returned a JSON error payload like { error: 'Invalid credentials' }
+                    if (res && res.error) {
+                        const low = String(res.error).toLowerCase();
+                        if (low.includes('invalid') || low.includes('credential')) {
+                            await Swal.fire({ title: 'No se pudo iniciar sesion', text: 'Contraseña incorrecta', icon: 'error', confirmButtonText: 'OK' });
+                            return;
+                        }
+                        // Other server-provided message
+                        await Swal.fire({ title: 'No se pudo iniciar sesión en el servidor', text: String(res.error), icon: 'error', confirmButtonText: 'OK' });
+                        return;
+                    }
                 }
                 // Server rejected login or returned unexpected response
                 console.error('Login failed on server or unexpected response');
@@ -81,7 +137,14 @@ document.addEventListener("DOMContentLoaded", function() {
                 return; // Block local fallback when server is reachable
             } catch (err) {
                 console.error('API login error (server reachable):', err);
-                const message = extractApiError(err) || 'Hubo un error al comunicarse con el servidor. Intenta más tarde.';
+                const apiMsg = extractApiError(err) || (err && err.message) || '';
+                const low = String(apiMsg).toLowerCase();
+                if (low.includes('invalid') || low.includes('credential') || low.includes('invalid credentials') || (err && err.status === 401)) {
+                    // Show the specific Spanish message requested by the user
+                    await Swal.fire({ title: 'No se pudo iniciar sesion', text: 'Contraseña incorrecta', icon: 'error', confirmButtonText: 'OK' });
+                    return;
+                }
+                const message = apiMsg || 'Hubo un error al comunicarse con el servidor. Intenta más tarde.';
                 await Swal.fire({ title: 'No se pudo iniciar sesión en el servidor', html: `<div>${escapeHtml(message)}</div>`, icon: 'error', confirmButtonText: 'OK' });
                 return;
             }
@@ -101,6 +164,11 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         Swal.fire({ title: 'Error de autenticación', text: 'Email o contraseña incorrectos.', icon: 'error' });
+        return;
+        } catch (err) {
+            console.error('[login-api] error in submit handler:', err);
+            await Swal.fire({ title: 'Error', text: 'Ocurrió un error al procesar el formulario. Revisa la consola para más detalles.', icon: 'error' });
+        }
     });
 
     // Solicitar permisos de notificación al cargar la página

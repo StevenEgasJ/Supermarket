@@ -76,6 +76,76 @@ async function getLocationForCheckout() {
 
 // Función para mostrar confirmación de ubicación con mapa
 async function showLocationMapConfirmation(currentLocation) {
+    // If there is an inline container on the page, prefer rendering the map inline
+    try {
+        const inlineContainer = document.getElementById('checkout-map');
+        if (inlineContainer) {
+            // Use a stable map id inside the inline container
+            const mapId = 'checkout-inline-map';
+            inlineContainer.innerHTML = `
+                <div class="w-100">
+                    <div class="alert alert-success mb-2">
+                        <i class="fa-solid fa-map-marker-alt me-2"></i>
+                        <strong>Ubicación conocida:</strong><br>
+                        ${currentLocation.address}
+                    </div>
+                    <div id="${mapId}" style="height: 300px; border-radius: 10px; border: 2px solid #007bff; background: #f8f9fa;"></div>
+                    <div class="mt-2 d-flex gap-2 justify-content-end">
+                        <button id="use-current-btn" class="btn btn-success btn-sm">Usar esta ubicación</button>
+                        <button id="change-location-btn" class="btn btn-outline-primary btn-sm">Cambiar ubicación</button>
+                        <button id="cancel-location-btn" class="btn btn-outline-secondary btn-sm">Cancelar</button>
+                    </div>
+                </div>
+            `;
+
+            // Ensure Leaflet is present, then init the map into the inline container
+            const loadLeafletAndInit = () => {
+                if (typeof L === 'undefined') {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                    document.head.appendChild(link);
+
+                    const script = document.createElement('script');
+                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+                    script.crossOrigin = '';
+                    script.onload = () => { setTimeout(() => initCheckoutLocationMap(mapId, currentLocation), 100); };
+                    script.onerror = () => { console.warn('Leaflet failed to load for inline map'); };
+                    document.head.appendChild(script);
+                } else {
+                    setTimeout(() => initCheckoutLocationMap(mapId, currentLocation), 100);
+                }
+            };
+
+            loadLeafletAndInit();
+
+            // Return a promise that resolves when user clicks one of the inline buttons
+            return await new Promise((resolve) => {
+                const useBtn = document.getElementById('use-current-btn');
+                const changeBtn = document.getElementById('change-location-btn');
+                const cancelBtn = document.getElementById('cancel-location-btn');
+
+                const cleanup = () => {
+                    useBtn?.removeEventListener('click', onUse);
+                    changeBtn?.removeEventListener('click', onChange);
+                    cancelBtn?.removeEventListener('click', onCancel);
+                };
+
+                const onUse = () => { cleanup(); resolve('use_current'); };
+                const onChange = () => { cleanup(); resolve('change_location'); };
+                const onCancel = () => { cleanup(); resolve(null); };
+
+                useBtn?.addEventListener('click', onUse);
+                changeBtn?.addEventListener('click', onChange);
+                cancelBtn?.addEventListener('click', onCancel);
+            });
+        }
+    } catch (inlineErr) {
+        console.warn('Inline location confirmation failed, falling back to modal', inlineErr);
+    }
+
+    // Fallback: show the modal (original behavior)
     const mapId = 'checkout-location-map-' + Date.now();
     
     const { value: action } = await Swal.fire({
@@ -351,8 +421,8 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Teléfono de contacto *</label>
-                            <input id="telefono" class="form-control" placeholder="Número de teléfono" value="${currentData.telefono || userData.telefono || ''}" required>
+                            <label class="form-label fw-bold">Teléfono de contacto</label>
+                            <input id="telefono" class="form-control" placeholder="Por favor ingrese número de teléfono" value="${currentData.telefono || userData.telefono || ''}" inputmode="numeric" maxlength="10" required>
                         </div>
                         
                         <div class="col-md-6">
@@ -377,23 +447,20 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label"><strong>Número de tarjeta *</strong></label>
-                                    <input id="numeroTarjeta" class="form-control" placeholder="1234 5678 9012 3456" maxlength="19" value="${currentData.numeroTarjeta || ''}" required>
+                                    <input id="numeroTarjeta" class="form-control" placeholder="Por favor ingrese número de tarjeta (sin espacios)" maxlength="19" value="${currentData.numeroTarjeta || ''}" required>
                                     <small class="text-muted">Para pruebas: 4532123456789012 (Visa) o 5555555555554444 (Mastercard)</small>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label"><strong>Fecha de vencimiento *</strong></label>
-                                    <input id="fechaVencimiento" class="form-control" placeholder="MM/AA" maxlength="5" value="${currentData.fechaVencimiento || ''}" required>
+                                    <input id="fechaVencimiento" class="form-control" placeholder="Por favor ingrese MM/AA" maxlength="5" value="${currentData.fechaVencimiento || ''}" required>
                                     <small class="text-muted">Ej: 12/25</small>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label"><strong>CVV *</strong></label>
-                                    <input id="cvv" class="form-control" placeholder="123" maxlength="4" value="${currentData.cvv || ''}" required>
+                                    <input id="cvv" class="form-control" placeholder="Por favor ingrese CVV" maxlength="4" value="${currentData.cvv || ''}" required>
                                     <small class="text-muted">3-4 dígitos</small>
                                 </div>
-                                <div class="col-12">
-                                    <label class="form-label"><strong>Nombre en la tarjeta *</strong></label>
-                                    <input id="nombreTarjeta" class="form-control" placeholder="Nombre completo como aparece en la tarjeta" value="${currentData.nombreTarjeta || ''}" required>
-                                </div>
+                                <!-- Nombre en la tarjeta eliminado por petición del usuario -->
                             </div>
                         </div>
 
@@ -407,7 +474,7 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                             <div class="row g-3">
                                 <div class="col-12">
                                     <label class="form-label"><strong>Email de PayPal *</strong></label>
-                                    <input id="emailPaypal" class="form-control" type="email" placeholder="tu@email.com" value="${currentData.emailPaypal || ''}" required>
+                                    <input id="emailPaypal" class="form-control" type="email" placeholder="Por favor ingrese email de PayPal" value="${currentData.emailPaypal || ''}" required>
                                     <small class="text-muted">El email asociado a tu cuenta de PayPal</small>
                                 </div>
                             </div>
@@ -424,7 +491,7 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                                 <div class="col-md-6">
                                     <label class="form-label"><strong>Banco *</strong></label>
                                     <select id="banco" class="form-select" required>
-                                        <option value="">Seleccionar banco</option>
+                                        <option value="">Por favor seleccione banco</option>
                                         <option value="pichincha" ${currentData.banco === 'pichincha' ? 'selected' : ''}>Banco Pichincha</option>
                                         <option value="pacifico" ${currentData.banco === 'pacifico' ? 'selected' : ''}>Banco del Pacífico</option>
                                         <option value="guayaquil" ${currentData.banco === 'guayaquil' ? 'selected' : ''}>Banco de Guayaquil</option>
@@ -435,21 +502,18 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label"><strong>Número de cuenta *</strong></label>
-                                    <input id="numeroCuenta" class="form-control" placeholder="Número de cuenta bancaria" value="${currentData.numeroCuenta || ''}" required>
+                                    <input id="numeroCuenta" class="form-control" placeholder="Por favor ingrese número de cuenta" value="${currentData.numeroCuenta || ''}" required>
                                     <small class="text-muted">Cuenta corriente o de ahorros</small>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label"><strong>Titular de la cuenta *</strong></label>
-                                    <input id="titularCuenta" class="form-control" placeholder="Nombre del titular de la cuenta" value="${currentData.titularCuenta || ''}" required>
+                                    <input id="titularCuenta" class="form-control" placeholder="Por favor ingrese nombre del titular" value="${currentData.titularCuenta || ''}" required>
                                     <small class="text-muted">Nombre completo como aparece en la cuenta</small>
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="col-12">
-                            <label class="form-label">Instrucciones especiales (opcional)</label>
-                            <textarea id="comentarios" class="form-control" rows="3" placeholder="Ej: Timbre del apartamento 3B, entregar en portería, etc.">${currentData.comentarios || ''}</textarea>
-                        </div>
+                        <!-- Campo de instrucciones especiales eliminado por petición del usuario -->
                     </div>
                 </div>
 
@@ -477,84 +541,119 @@ async function getInvoiceDataWithLocation(userData, locationData) {
                 }
             },
             preConfirm: () => {
-                const telefono = document.getElementById('telefono').value.trim();
-                const metodoPago = document.getElementById('metodoPago').value;
+                // Clear any previous inline errors
+                try { clearAllPaymentInvalids(); } catch (e) { /* ignore */ }
 
-                if (!telefono || !metodoPago) {
-                    Swal.showValidationMessage('Por favor completa el teléfono y método de pago');
-                    return false;
+                const telefonoEl = document.getElementById('telefono');
+                const metodoPagoEl = document.getElementById('metodoPago');
+                const telefonoRaw = telefonoEl ? telefonoEl.value.trim() : '';
+                const telefono = (telefonoRaw || '').replace(/\D/g, ''); // normalized digits-only
+                const metodoPago = metodoPagoEl ? metodoPagoEl.value : '';
+
+                const errors = [];
+
+                if (!telefono || telefono.length !== 10) {
+                    if (telefonoEl) markInvalid(telefonoEl, 'Por favor ingresa un teléfono válido de 10 dígitos');
+                    errors.push('telefono');
                 }
 
-                let paymentData = {
+                if (!metodoPago) {
+                    if (metodoPagoEl) markInvalid(metodoPagoEl, 'Selecciona un método de pago');
+                    errors.push('metodoPago');
+                }
+
+                    const paymentData = {
                     telefono: telefono,
                     metodoPago: metodoPago,
-                    comentarios: document.getElementById('comentarios').value.trim() || '',
+                    comentarios: '',
                     direccion: locationData.address.full,
                     ciudad: locationData.address.city,
                     provincia: locationData.address.province,
                     ubicacionCompleta: locationData
                 };
 
-                // Validar campos específicos según método de pago
+                // Validate payment-specific fields and mark invalids inline
                 if (metodoPago === 'tarjeta') {
-                    const numeroTarjeta = document.getElementById('numeroTarjeta').value.replace(/\s/g, '');
-                    const fechaVencimiento = document.getElementById('fechaVencimiento').value;
-                    const cvv = document.getElementById('cvv').value;
-                    const nombreTarjeta = document.getElementById('nombreTarjeta').value.trim();
+                    const numeroTarjetaEl = document.getElementById('numeroTarjeta');
+                    const fechaVencimientoEl = document.getElementById('fechaVencimiento');
+                    const cvvEl = document.getElementById('cvv');
 
-                    if (!numeroTarjeta || !fechaVencimiento || !cvv || !nombreTarjeta) {
-                        Swal.showValidationMessage('Por favor completa todos los campos de la tarjeta de crédito. Revisa que todos los campos estén llenos.');
-                        return false;
+                    const numeroTarjeta = numeroTarjetaEl ? numeroTarjetaEl.value.replace(/\s/g, '') : '';
+                    const fechaVencimiento = fechaVencimientoEl ? fechaVencimientoEl.value : '';
+                    const cvv = cvvEl ? cvvEl.value : '';
+
+                    if (!numeroTarjeta) {
+                        if (numeroTarjetaEl) markInvalid(numeroTarjetaEl, 'Por favor ingresa el número de la tarjeta');
+                        errors.push('numeroTarjeta');
+                    } else if (!validateCreditCard(numeroTarjeta)) {
+                        if (numeroTarjetaEl) markInvalid(numeroTarjetaEl, 'Número de tarjeta inválido');
+                        errors.push('numeroTarjeta');
                     }
 
-                    // Validar formato de tarjeta
-                    if (!validateCreditCard(numeroTarjeta)) {
-                        Swal.showValidationMessage('Número de tarjeta inválido. Use tarjetas de prueba: 4532123456789012 (Visa) o 5555555555554444 (Mastercard)');
-                        return false;
+                    if (!fechaVencimiento) {
+                        if (fechaVencimientoEl) markInvalid(fechaVencimientoEl, 'Por favor ingresa la fecha de vencimiento (MM/AA)');
+                        errors.push('fechaVencimiento');
+                    } else if (!/^\d{2}\/\d{2}$/.test(fechaVencimiento)) {
+                        if (fechaVencimientoEl) markInvalid(fechaVencimientoEl, 'Formato MM/AA requerido (ej: 12/25)');
+                        errors.push('fechaVencimiento');
                     }
 
-                    // Validar fecha de vencimiento
-                    if (!/^\d{2}\/\d{2}$/.test(fechaVencimiento)) {
-                        Swal.showValidationMessage('Formato de fecha incorrecto. Use MM/AA (ej: 12/25)');
-                        return false;
+                    if (!cvv) {
+                        if (cvvEl) markInvalid(cvvEl, 'Por favor ingresa el CVV');
+                        errors.push('cvv');
+                    } else if (cvv.length < 3 || cvv.length > 4 || !/^\d+$/.test(cvv)) {
+                        if (cvvEl) markInvalid(cvvEl, 'CVV inválido (3-4 dígitos)');
+                        errors.push('cvv');
                     }
 
-                    // Validar CVV
-                    if (cvv.length < 3 || cvv.length > 4 || !/^\d+$/.test(cvv)) {
-                        Swal.showValidationMessage('CVV debe tener 3 o 4 dígitos numéricos');
-                        return false;
+                    if (errors.length === 0) {
+                        paymentData.tarjetaInfo = { numero: numeroTarjeta, fechaVencimiento: fechaVencimiento, cvv: cvv };
                     }
 
-                    paymentData.tarjetaInfo = {
-                        numero: numeroTarjeta,
-                        fechaVencimiento: fechaVencimiento,
-                        cvv: cvv,
-                        nombreTitular: nombreTarjeta
-                    };
                 } else if (metodoPago === 'paypal') {
-                    const emailPaypal = document.getElementById('emailPaypal').value.trim();
+                    const emailPaypalEl = document.getElementById('emailPaypal');
+                    const emailPaypal = emailPaypalEl ? emailPaypalEl.value.trim() : '';
+
                     if (!emailPaypal) {
-                        Swal.showValidationMessage('Por favor ingresa tu email de PayPal');
-                        return false;
+                        if (emailPaypalEl) markInvalid(emailPaypalEl, 'Por favor ingresa tu email de PayPal');
+                        errors.push('emailPaypal');
+                    } else if (!validateEmail(emailPaypal)) {
+                        if (emailPaypalEl) markInvalid(emailPaypalEl, 'Email inválido');
+                        errors.push('emailPaypal');
+                    } else {
+                        paymentData.paypalInfo = { email: emailPaypal };
                     }
-                    if (!validateEmail(emailPaypal)) {
-                        Swal.showValidationMessage('Email de PayPal inválido. Use formato: usuario@dominio.com');
-                        return false;
-                    }
-                    paymentData.paypalInfo = { email: emailPaypal };
+
                 } else if (metodoPago === 'transferencia') {
-                    const banco = document.getElementById('banco').value;
-                    const numeroCuenta = document.getElementById('numeroCuenta').value.trim();
-                    const titularCuenta = document.getElementById('titularCuenta').value.trim();
-                    if (!banco || !numeroCuenta || !titularCuenta) {
-                        Swal.showValidationMessage('Por favor completa todos los datos de transferencia (banco, número de cuenta y titular)');
-                        return false;
+                    const bancoEl = document.getElementById('banco');
+                    const numeroCuentaEl = document.getElementById('numeroCuenta');
+                    const titularCuentaEl = document.getElementById('titularCuenta');
+
+                    const banco = bancoEl ? bancoEl.value : '';
+                    const numeroCuenta = numeroCuentaEl ? numeroCuentaEl.value.trim() : '';
+                    const titularCuenta = titularCuentaEl ? titularCuentaEl.value.trim() : '';
+
+                    if (!banco) {
+                        if (bancoEl) markInvalid(bancoEl, 'Selecciona el banco');
+                        errors.push('banco');
                     }
-                    paymentData.transferenciaInfo = { 
-                        banco: banco, 
-                        numeroCuenta: numeroCuenta,
-                        titularCuenta: titularCuenta 
-                    };
+                    if (!numeroCuenta) {
+                        if (numeroCuentaEl) markInvalid(numeroCuentaEl, 'Ingresa el número de cuenta');
+                        errors.push('numeroCuenta');
+                    }
+                    if (!titularCuenta) {
+                        if (titularCuentaEl) markInvalid(titularCuentaEl, 'Ingresa el nombre del titular');
+                        errors.push('titularCuenta');
+                    }
+
+                    if (errors.length === 0) {
+                        paymentData.transferenciaInfo = { banco: banco, numeroCuenta: numeroCuenta, titularCuenta: titularCuenta };
+                    }
+                }
+
+                if (errors.length > 0) {
+                    Swal.showValidationMessage('Por favor corrige los campos resaltados en rojo');
+                    return false;
                 }
 
                 return paymentData;
@@ -937,9 +1036,6 @@ class CheckoutManager {
             case error.PERMISSION_DENIED:
                 message = 'Acceso a la ubicación denegado. Por favor, permite el acceso para una mejor experiencia.';
                 break;
-            case error.POSITION_UNAVAILABLE:
-                message = 'Información de ubicación no disponible.';
-                break;
             case error.TIMEOUT:
                 message = 'Tiempo de espera agotado al obtener la ubicación.';
                 break;
@@ -1044,8 +1140,22 @@ class CheckoutManager {
     }
 }
 
-// Instanciar el checkout manager
-const checkoutManager = new CheckoutManager();
+// Instanciar el checkout manager solo en la página de checkout o si el DOM indica que se requiere
+let checkoutManager = null;
+try {
+    const shouldInit = (typeof window !== 'undefined') && (
+        window.location.pathname.endsWith('checkout.html') ||
+        document.getElementById('locationStatus') ||
+        document.getElementById('checkout-map')
+    );
+    if (shouldInit) {
+        checkoutManager = new CheckoutManager();
+        // Exponer globalmente por compatibilidad
+        window.checkoutManager = checkoutManager;
+    }
+} catch (initErr) {
+    console.warn('checkoutManager init skipped or failed:', initErr);
+}
 
 // Compatibility helper: expose togglePaymentFields and setup listeners globally so Swal-generated content can use them
 window.togglePaymentFields = function() {
@@ -1058,82 +1168,94 @@ window.togglePaymentFields = function() {
         const paypalFields = document.getElementById('paypal-fields');
         const transferenciaFields = document.getElementById('transferencia-fields');
 
-        if (tarjetaFields) tarjetaFields.style.display = 'none';
-        if (paypalFields) paypalFields.style.display = 'none';
-        if (transferenciaFields) transferenciaFields.style.display = 'none';
-
-        if (metodoPago === 'tarjeta' && tarjetaFields) tarjetaFields.style.display = 'block';
-        if (metodoPago === 'paypal' && paypalFields) paypalFields.style.display = 'block';
-        if (metodoPago === 'transferencia' && transferenciaFields) transferenciaFields.style.display = 'block';
+        if (tarjetaFields) tarjetaFields.style.display = metodoPago === 'tarjeta' ? 'block' : 'none';
+        if (paypalFields) paypalFields.style.display = metodoPago === 'paypal' ? 'block' : 'none';
+        if (transferenciaFields) transferenciaFields.style.display = metodoPago === 'transferencia' ? 'block' : 'none';
     } catch (err) {
-        console.warn('togglePaymentFields error:', err);
+        console.error('togglePaymentFields error:', err);
     }
 };
 
+// Setup listeners for inputs inside Swal modal (called from didOpen)
 window.setupPaymentFieldListeners = function() {
     try {
+        const telefono = document.getElementById('telefono');
+        if (telefono) {
+            telefono.setAttribute('inputmode', 'numeric');
+            telefono.setAttribute('maxlength', '10');
+            telefono.addEventListener('input', () => {
+                telefono.value = telefono.value.replace(/\D/g, '').slice(0,10);
+            });
+        }
+
         const numeroTarjeta = document.getElementById('numeroTarjeta');
+        if (numeroTarjeta) {
+            numeroTarjeta.addEventListener('input', () => {
+                numeroTarjeta.value = numeroTarjeta.value.replace(/[^0-9\s]/g, '').slice(0,19);
+            });
+        }
+
         const fechaVencimiento = document.getElementById('fechaVencimiento');
-        const cvv = document.getElementById('cvv');
-        const numeroCuenta = document.getElementById('numeroCuenta');
-
-        numeroTarjeta?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
-            let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
-            if (formattedValue.length <= 19) {
-                e.target.value = formattedValue;
-            }
-        });
-
-        fechaVencimiento?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/[^0-9]/g, '');
-            if (value.length >= 2) {
-                value = value.substring(0,2) + '/' + value.substring(2,4);
-            }
-            e.target.value = value;
-        });
-
-        cvv?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/[^0-9]/g, '');
-            e.target.value = value;
-        });
-
-        numeroCuenta?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/[^0-9]/g, '');
-            e.target.value = value;
-        });
+        if (fechaVencimiento) {
+            fechaVencimiento.addEventListener('input', () => {
+                // Auto-insert slash for MM/AA
+                let v = fechaVencimiento.value.replace(/[^0-9]/g, '');
+                if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2,4);
+                fechaVencimiento.value = v.slice(0,5);
+            });
+        }
     } catch (err) {
         console.warn('setupPaymentFieldListeners error:', err);
     }
 };
 
-// Backwards-compatibility: provide getUserOrders and showInvoice expected by compras.html
-checkoutManager.getUserOrders = function() {
-    try {
-        const userEmail = localStorage.getItem('userEmail');
-        if (!userEmail) return [];
-
-        const userOrders = JSON.parse(localStorage.getItem(`orders_${userEmail}`) || '[]');
-        const comprasHistorial = JSON.parse(localStorage.getItem('comprasHistorial') || '[]').filter(o => o.cliente && o.cliente.email === userEmail);
-        const adminPedidos = JSON.parse(localStorage.getItem('pedidos') || '[]').filter(o => o.cliente && o.cliente.email === userEmail);
-
-        const combined = [...userOrders, ...comprasHistorial, ...adminPedidos];
-        const unique = combined.filter((order, index, self) => index === self.findIndex(o => (o.id || o.numeroOrden) === (order.id || order.numeroOrden)));
-        return unique;
-    } catch (err) {
-        console.error('getUserOrders error:', err);
-        return [];
+// Helpers to mark/clear inline validation (Bootstrap style)
+function markInvalid(el, msg) {
+    if (!el) return;
+    el.classList.add('is-invalid');
+    // remove existing invalid-feedback sibling if any
+    let fb = el.parentNode.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        el.parentNode.appendChild(fb);
     }
-};
+    fb.innerText = msg || 'Campo requerido';
+}
 
-checkoutManager.showInvoice = async function(order) {
-    // reuse existing showFinalInvoice for compatibility
-    try {
-        await showFinalInvoice(order);
-    } catch (err) {
-        console.error('showInvoice error:', err);
-    }
-};
+function clearInvalid(el) {
+    if (!el) return;
+    el.classList.remove('is-invalid');
+    const fb = el.parentNode.querySelector('.invalid-feedback');
+    if (fb) fb.remove();
+}
+
+function clearAllPaymentInvalids() {
+    const ids = ['telefono','numeroTarjeta','fechaVencimiento','cvv','emailPaypal','banco','numeroCuenta','titularCuenta'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) clearInvalid(el);
+    });
+}
+
+if (checkoutManager) {
+    checkoutManager.showInvoice = async function(order) {
+        try {
+            await showFinalInvoice(order);
+        } catch (err) {
+            console.error('showInvoice error:', err);
+        }
+    };
+} else {
+    // Fallback global helper when checkoutManager is not initialized on this page
+    window.checkoutShowInvoice = async function(order) {
+        try {
+            await showFinalInvoice(order);
+        } catch (err) {
+            console.error('checkoutShowInvoice error:', err);
+        }
+    };
+}
 
 // Función global para limpiar ubicación guardada
 window.clearSavedLocation = function() {
@@ -1148,8 +1270,10 @@ window.clearSavedLocation = function() {
     }).then((result) => {
         if (result.isConfirmed) {
             localStorage.removeItem('userLocation');
-            checkoutManager.currentLocation = null;
-            checkoutManager.updateLocationStatusFromStorage();
+            if (checkoutManager) {
+                checkoutManager.currentLocation = null;
+                checkoutManager.updateLocationStatusFromStorage();
+            }
             
             Swal.fire({
                 title: 'Ubicación eliminada',
@@ -1164,9 +1288,15 @@ window.clearSavedLocation = function() {
 
 // Inicializar ubicación cuando se carga la página
 document.addEventListener('DOMContentLoaded', function() {
-    // Actualizar estado de ubicación
+    // Actualizar estado de ubicación (solo si el manager fue inicializado)
     setTimeout(() => {
-        checkoutManager.updateLocationStatusFromStorage();
+        try {
+            if (checkoutManager && typeof checkoutManager.updateLocationStatusFromStorage === 'function') {
+                checkoutManager.updateLocationStatusFromStorage();
+            }
+        } catch (e) {
+            console.warn('updateLocationStatusFromStorage guard failed', e);
+        }
     }, 500);
     
     // Solicitar permisos de notificación si no se han otorgado
@@ -1222,14 +1352,33 @@ window.enviarCarrito = async function() {
 
         console.log('📍 Ubicación obtenida:', locationData);
 
-        // ✅ PASO 4: Obtener datos del usuario
-        const userData = {
+        // ✅ PASO 4: Obtener datos del usuario (preferir datos desde la base de datos vía API cuando haya token)
+        let userData = {
             email: localStorage.getItem('userEmail'),
             nombre: localStorage.getItem('userNombre'),
             apellido: localStorage.getItem('userApellido'),
             cedula: localStorage.getItem('userCedula'),
             telefono: localStorage.getItem('userTelefono') || ''
         };
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (token && window.api && typeof window.api.getUser === 'function') {
+                try {
+                    const serverUser = await window.api.getUser('me');
+                    if (serverUser) {
+                        userData = {
+                            email: serverUser.email || userData.email,
+                            nombre: serverUser.nombre || userData.nombre,
+                            apellido: serverUser.apellido || userData.apellido,
+                            cedula: serverUser.cedula || userData.cedula,
+                            telefono: serverUser.telefono || serverUser.phone || userData.telefono
+                        };
+                    }
+                } catch(fetchErr){
+                    console.warn('Could not fetch user from API during checkout, falling back to local data', fetchErr);
+                }
+            }
+        } catch(e) { /* ignore */ }
 
         // ✅ PASO 5: Obtener SOLO teléfono y método de pago (ubicación ya confirmada)
         const invoiceData = await getInvoiceDataWithLocation(userData, locationData);
@@ -1406,7 +1555,7 @@ window.downloadInvoicePDF = function(order) {
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Factura - El Valle</title>
+                <title>Factura - Tatylu, Viveres</title>
                 <style>
                     body { font-family: Arial, sans-serif; margin: 20px; }
                     .header { text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 20px; margin-bottom: 20px; }
@@ -1422,7 +1571,7 @@ window.downloadInvoicePDF = function(order) {
             </head>
             <body>
                 <div class="header">
-                    <div class="logo">EL VALLE</div>
+                    <div class="logo">Tatylu, Viveres</div>
                     <p>Electrodomésticos de Calidad</p>
                     <p>Avenida Maldonado S29-106, Quito | +593967967369</p>
                 </div>
@@ -1485,7 +1634,7 @@ window.downloadInvoicePDF = function(order) {
                 </div>
                 
                 <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #666;">
-                    <p>¡Gracias por tu compra en El Valle!</p>
+                    <p>¡Gracias por tu compra en Tatylu, Viveres!</p>
                 </div>
             </body>
             </html>
@@ -1813,46 +1962,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializar controles de teclado para cantidad
     initializeQuantityKeyboardControls();
     
-    // Mostrar instrucciones de teclado si hay productos en el carrito
-    setTimeout(() => {
-        const cartItems = document.querySelectorAll('.cart-item');
-        if (cartItems.length > 0) {
-            showKeyboardInstructions();
-        }
-    }, 1000);
+    // NOTE: previously showed keyboard instructions; removed per UX decision
 });
 
 // Mostrar instrucciones de uso del teclado
-function showKeyboardInstructions() {
-    const instructionsShown = localStorage.getItem('keyboardInstructionsShown');
-    
-    if (!instructionsShown) {
-        Swal.fire({
-            title: '⌨️ Controles de Teclado',
-            html: `
-                <div class="text-start">
-                    <p><strong>Puedes usar el teclado para cambiar cantidades:</strong></p>
-                    <ul>
-                        <li><kbd>↑</kbd> o <kbd>+</kbd> - Aumentar cantidad</li>
-                        <li><kbd>↓</kbd> o <kbd>-</kbd> - Disminuir cantidad</li>
-                        <li><kbd>Ctrl</kbd> + <kbd>+</kbd> - Aumentar primer producto</li>
-                        <li><kbd>Ctrl</kbd> + <kbd>-</kbd> - Disminuir primer producto</li>
-                    </ul>
-                    <p><small class="text-muted">Haz clic en el campo de cantidad y usa las teclas</small></p>
-                </div>
-            `,
-            icon: 'info',
-            confirmButtonText: 'Entendido',
-            showCancelButton: true,
-            cancelButtonText: 'No mostrar de nuevo',
-            confirmButtonColor: '#28a745'
-        }).then((result) => {
-            if (result.dismiss === Swal.DismissReason.cancel) {
-                localStorage.setItem('keyboardInstructionsShown', 'true');
-            }
-        });
-    }
-}
+// showKeyboardInstructions removed per user request (no tutorial on cart page)
 
 // =================== FUNCIONES DE VALIDACIÓN ===================
 

@@ -535,7 +535,7 @@ function updateUserInterface() {
         dropdownMenu.innerHTML = `
             <div class="dropdown-header d-flex align-items-center mb-3">
                 <i class="fa-solid fa-user-circle fa-2x text-secondary me-2"></i>
-                <h6 class="mb-0 fw-bold">Bienvenido a El Valle</h6>
+                <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
             </div>
             <div class="alert alert-info rounded-2 mb-3">
                 <small class="mb-0">Para comprar productos necesitas una cuenta</small>

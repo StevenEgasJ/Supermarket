@@ -35,7 +35,7 @@
                 <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 p-3" aria-labelledby="userDropdown" style="min-width: 280px; margin-top: 8px;">
                   <div class="dropdown-header d-flex align-items-center mb-3">
                     <i class="fa-solid fa-user-circle fa-2x text-primary me-2"></i>
-                    <h6 class="mb-0 fw-bold">Perfil de Usuario</h6>
+                    <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
                   </div>
                   <div class="user-info bg-light rounded-2 p-2 mb-3">
                     <div class="mb-2">
@@ -112,18 +112,20 @@
                                 <h2 class="login-title">Iniciar Sesión</h2>
                                 <p class="text-muted">Accede a tu cuenta de Tatylu</p>
                             </div>
-                            <form id="loginForm">
+                            <form id="loginForm" novalidate>
                                 <div class="mb-3">
                                     <label for="email" class="form-label fw-semibold">
                                         <i class="fa-solid fa-envelope me-1"></i>Correo Electrónico
                                     </label>
                                     <input type="email" class="form-control form-control-lg" id="email" placeholder="Ingrese su correo" required>
+                  <div class="invalid-feedback" id="emailFeedback">Por favor, ingrese correo electrónico</div>
                                 </div>
                                 <div class="mb-4">
                                     <label for="password" class="form-label fw-semibold">
                                         <i class="fa-solid fa-lock me-1"></i>Contraseña
                                     </label>
                                     <input type="password" class="form-control form-control-lg" id="password" placeholder="Ingrese su contraseña" required>
+                  <div class="invalid-feedback" id="passwordFeedback">Por favor, ingrese contraseña</div>
                                 </div>
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-1 btn-lg">

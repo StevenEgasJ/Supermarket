@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="./static/css/index.css">
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="./static/css/promotions.css">
 </head>
 <body>
 
@@ -36,7 +37,7 @@
                 <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 p-3" aria-labelledby="userDropdown" style="min-width: 280px; margin-top: 8px;">
                   <div class="dropdown-header d-flex align-items-center mb-3">
                     <i class="fa-solid fa-user-circle fa-2x text-primary me-2"></i>
-                    <h6 class="mb-0 fw-bold">Perfil de Usuario</h6>
+                    <h6 class="mb-0 fw-bold">Bienvenido a Tatylu</h6>
                   </div>
                   <div class="user-info bg-light rounded-2 p-2 mb-3">
                     <div class="mb-2">
@@ -138,28 +139,29 @@
                 <a href="aboutUs.html" class="btn btn-1">Información <i class="fa-solid fa-arrow-right"></i></a>
             </div>
         </div>
-        <section class="gallery container my-5">
-            <div class="row g-3 justify-content-center">
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/refrigeradora.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Refrigeradora">
-                </div>
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/microondas.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Microondas">
-                </div>
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/licuadora.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Licuadora">
-                </div>
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/cafetera.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Cafetera">
-                </div>
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/hervidor.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Hervidor Eléctrico">
-                </div>
-                <div class="col-12 col-sm-6 col-md-6 col-lg-4">
-                    <img src="./static/img/plancha.png" class="img-fluid rounded shadow w-100" style="aspect-ratio: 9 / 16; object-fit: cover;" alt="Plancha">
-                </div>
-            </div>
-        </section>
+    <!-- Promotions section: left = seasonal, right = daily carousel -->
+    <section class="promotions" aria-label="Promociones">
+      <article class="promo-card" id="promo-season">
+        <img class="promo-media" id="promoSeasonImg" src="./static/img/promo_navidad.jpg" alt="Promoción de temporada">
+        <div class="promo-body">
+          <h3 class="promo-title">Promoción de temporada</h3>
+          <p class="promo-sub">Ofertas especiales de la temporada en víveres y productos para el hogar. Aprovecha descuentos selectos por tiempo limitado.</p>
+          <a class="promo-cta" href="product.html">Ver promoción</a>
+        </div>
+      </article>
+
+      <article class="promo-card" id="promo-today">
+        <img class="promo-media" id="promoCarouselImg" src="./static/img/promo_vegetales.jpg" alt="Promoción del día">
+        <div class="promo-body">
+          <h3 class="promo-title">Promoción del día</h3>
+          <p class="promo-sub" id="promoCaption">Ofertas diarias en frutas, carnes y limpieza — no te las pierdas.</p>
+          <div style="display:flex;gap:.5rem;align-items:center;margin-top:.4rem;">
+            <a class="promo-cta" href="product.html">Comprar ahora</a>
+          </div>
+          <div class="carousel-dots" id="promoDots" aria-hidden="false"></div>
+        </div>
+      </article>
+    </section>
     </main>
 
     <!-- Footer -->
@@ -210,6 +212,7 @@
     <script src="./static/js/theme-toggle.js"></script>
     <script src="./static/js/main.js"></script>
     <script src="./static/js/test-functions.js"></script>
+    <script src="./static/js/promotions.js"></script>
 
 </body>
 </html>

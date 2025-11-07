@@ -756,7 +756,8 @@
                 if (!res.ok) throw new Error('Network response was not ok: ' + res.status);
                 return await res.json();
             } catch (err) {
-                console.error('fetchJson error for', path, err);
+                // Reduce noise: log as debug and preserve stack for troubleshooting
+                console.debug('fetchJson error for', path, err && (err.message || err));
                 return null;
             }
         }
@@ -872,6 +873,8 @@
             });
 
             // Render each order, enriching client info when necessary
+            // Cache user lookups to avoid repeated /api/users/:id requests and noisy 404 logs
+            const userCache = new Map();
             for (const order of ordersSorted) {
                 const id = order._id || order.id || '';
 
@@ -893,10 +896,17 @@
                 if (!client && (order.userId || order.user || order.usuario || order.user_id)) {
                     const uid = order.userId || order.user || order.usuario || order.user_id;
                     try {
-                        const u = await fetchJson(`/api/users/${uid}`);
+                        let u;
+                        if (userCache.has(String(uid))) {
+                            u = userCache.get(String(uid));
+                        } else {
+                            u = await fetchJson(`/api/users/${uid}`);
+                            // Cache the result (even null) to avoid repeating failed lookups
+                            userCache.set(String(uid), u);
+                        }
                         if (u) client = u.nombre || u.name || (u.nombre ? `${u.nombre} ${u.apellido || ''}`.trim() : u.email || '');
                     } catch (e) {
-                        console.warn('Could not fetch user for order list', uid, e);
+                        console.debug('Could not fetch user for order list', uid, e && (e.message || e));
                     }
                     if (!client) client = String(uid);
                 }
