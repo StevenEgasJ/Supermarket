@@ -90,7 +90,7 @@
             <div class="row cart-layout-row">
                 <div class="col-12">
                     <div class="row">
-                        <div class="col-12 col-lg-5">
+                        <div id="cart-left-col" class="col-12 col-lg-5">
                             <div class="cart-box p-4 rounded shadow-sm mb-3">
                                 <h1 class="text-center">Carrito de Compras</h1>
 
@@ -107,7 +107,7 @@
                             </div>
                         </div>
 
-                        <div class="col-12 col-lg-7">
+                        <div id="cart-right-col" class="col-12 col-lg-7">
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
                                     <div class="summary-box p-3 rounded shadow-sm h-100">
@@ -115,16 +115,16 @@
                                         <div class="mt-3">
                                             <div class="shipping-option mt-2">
                                                 <div>
-                                                    <input type="radio" name="shipping" id="ship-standard" value="0" checked>
-                                                    <label for="ship-standard">Estándar: Entrega en ~4 horas (Envío incluido)</label>
+                                                    <input type="radio" name="shipping" id="ship-standard" value="1" checked>
+                                                    <label for="ship-standard">Estándar: Entrega en ~4 horas — $1.00</label>
                                                 </div>
                                                 <div class="small text-muted">Entrega estimada<br><strong id="est-standard">En ~4 horas</strong></div>
                                             </div>
 
                                             <div class="shipping-option mt-2">
                                                 <div>
-                                                    <input type="radio" name="shipping" id="ship-express" value="8.75">
-                                                    <label for="ship-express">Express: Entrega en ~10 minutos — $8.75</label>
+                                                    <input type="radio" name="shipping" id="ship-express" value="2">
+                                                    <label for="ship-express">Express: Entrega en ~10 minutos — $2.00</label>
                                                 </div>
                                                 <div class="small text-muted">Entrega estimada<br><strong id="est-express">En ~10 minutos</strong></div>
                                             </div>

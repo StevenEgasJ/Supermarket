@@ -289,11 +289,11 @@ function buildAccordion(){
           <div class="mb-3">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="ci_shipping" id="ci_ship_standard" value="standard" checked>
-              <label class="form-check-label" for="ci_ship_standard">Estándar: Entrega en ~4 horas</label>
+              <label class="form-check-label" for="ci_ship_standard">Estándar: Entrega en ~4 horas — $1.00</label>
             </div>
             <div class="form-check mt-2">
               <input class="form-check-input" type="radio" name="ci_shipping" id="ci_ship_express" value="express">
-              <label class="form-check-label" for="ci_ship_express">Express: Entrega en ~10 minutos — $8.75</label>
+              <label class="form-check-label" for="ci_ship_express">Express: Entrega en ~10 minutos — $2.00</label>
             </div>
             <div class="form-check mt-2">
               <input class="form-check-input" type="radio" name="ci_shipping" id="ci_ship_pickup" value="pickup">
@@ -327,12 +327,16 @@ function renderSummary(){
   // Determine shipping cost based on selected shipping option saved from cart or chosen here
   let envioFinal = totals.envio;
   try{
-    const selected = localStorage.getItem('selectedShipping');
-    if(selected){
-      // Map tokens to the same prices used on cart page
-      if(selected === 'express') envioFinal = 8.75;
-      else if(selected === 'standard') envioFinal = 0.00;
-      else if(selected === 'pickup') envioFinal = 0.00;
+    const selectedRaw = localStorage.getItem('selectedShipping');
+    if(selectedRaw){
+      // normalize tokens like 'ship-standard', 'ci_ship_standard' or plain 'standard'
+      let token = String(selectedRaw || '').toLowerCase();
+      token = token.replace(/^ship[-_]?/, '');
+      token = token.replace(/^ci_ship[-_]?/, '');
+      // Map tokens to the same prices used on cart page: standard $1, express $2, pickup $0
+      if(token === 'express') envioFinal = 2.00;
+      else if(token === 'standard') envioFinal = 1.00;
+      else if(token === 'pickup') envioFinal = 0.00;
     }
   }catch(e){ /* ignore */ }
 
@@ -435,9 +439,12 @@ function prefillShipping(){
 // Restore shipping selection saved from cart page (localStorage.selectedShipping)
 function restoreSelectedShipping(){
   try{
-    const token = localStorage.getItem('selectedShipping');
-    if(!token) return;
-    // Map token like 'standard' -> 'ci_ship_standard'
+    const raw = localStorage.getItem('selectedShipping');
+    if(!raw) return;
+    // normalize possible stored values: could be 'standard' or 'ship-standard' or 'ci_ship_standard'
+    let token = String(raw || '').toLowerCase();
+    token = token.replace(/^ship[-_]?/, '');
+    token = token.replace(/^ci_ship[-_]?/, '');
     const id = 'ci_ship_' + token;
     const el = document.getElementById(id);
     if(el){
@@ -548,6 +555,11 @@ function wirePageEvents(){
         const id = s.id || '';
         const token = id.replace(/^ci_ship[-_]?/,'');
         if(token) localStorage.setItem('selectedShipping', token);
+        // visually mark the selected form-check
+        try {
+          document.querySelectorAll('#collapseThree .form-check').forEach(function(fc){ fc.classList.remove('selected'); });
+          const parent = s.closest('.form-check'); if(parent) parent.classList.add('selected');
+        } catch(_){}
         // re-render summary in case shipping affects totals/UI
         try{ renderSummary(); } catch(e){}
       }catch(e){ console.warn('failed to persist ci shipping', e); }
@@ -858,6 +870,20 @@ function wirePageEvents(){
       adjustedTotals.envio = 0.00;
       adjustedTotals.total = parseFloat((adjustedTotals.subtotal + adjustedTotals.iva + adjustedTotals.envio).toFixed(2));
     }
+
+    // Ensure the shipping cost is set based on selectedShipping token (so order totals include it)
+    try{
+      const raw = localStorage.getItem('selectedShipping');
+      if(raw){
+        let token = String(raw||'').toLowerCase();
+        token = token.replace(/^ship[-_]?/,'');
+        token = token.replace(/^ci_ship[-_]?/,'');
+        if(token === 'express') adjustedTotals.envio = 2.00;
+        else if(token === 'standard') adjustedTotals.envio = 1.00;
+        else if(token === 'pickup') adjustedTotals.envio = 0.00;
+        adjustedTotals.total = parseFloat((adjustedTotals.subtotal + adjustedTotals.iva + adjustedTotals.envio).toFixed(2));
+      }
+    }catch(e){ }
 
     // Build user data from available persistent info (prefer stored user values).
     const userData = {

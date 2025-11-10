@@ -94,6 +94,10 @@ qty-display { min-width: 28px; display:inline-block; text-align:center; }
 .shipping-option.selected { border-color:#0b5ed7; background:#bfe6ff; box-shadow:0 10px 28px rgba(11,94,215,0.12); color: #073763; }
 .shipping-option .small { margin:0.25rem 0 0 0; }
 
+/* Checkout page: highlight selected form-check (shipping methods) similarly */
+.form-check.selected { border:1px solid #0b5ed7; background:#bfe6ff; border-radius:6px; padding:0.6rem; }
+.form-check.selected .form-check-label { color: #073763; font-weight:600; }
+
 /* keep native radio visually hidden but rely on the card contrast and selected styles */
 .shipping-option input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
 
@@ -218,6 +222,35 @@ h1 {
     color: var(--text-color);
     border-radius: 5px;
     padding: 5px;
+}
+
+/* Custom small adjustments for cart.js rendered elements */
+.qty-input {
+    background-color: var(--card); /* match card background */
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 6px;
+    padding: 6px !important;
+    max-width: 48px;
+}
+.remove-item {
+    display: inline-block;
+    align-self: center;
+    margin-left: 8px;
+}
+
+/* simple remove style: no rectangle, text-only, sits under the qty controls */
+.remove-item.simple-remove {
+    background: transparent;
+    border: none;
+    color: #c82333; /* red color */
+    padding: 0;
+    margin: 0;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.remove-item.simple-remove:hover {
+    text-decoration: underline;
+    color: #a71d2a;
 }
 
 .remove-btn {
