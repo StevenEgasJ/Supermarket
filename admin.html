@@ -348,6 +348,13 @@
                             <i class="fa-solid fa-user-plus me-2"></i>Agregar Usuario
                         </button>
                     </div>
+                    <!-- Error / status area for users section -->
+                    <div id="usersError" style="display:none;" class="alert alert-warning d-flex justify-content-between align-items-center">
+                        <div id="usersErrorMsg">Error cargando usuarios</div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" id="usersRetryBtn" onclick="retryFetchUsers()">Reintentar</button>
+                        </div>
+                    </div>
                     
                     <div class="table-responsive">
                         <table class="table table-striped">

@@ -997,6 +997,46 @@ function updateUserInterface() {
         } else {
             userDropdownButton.innerHTML = '<i class="fa-solid fa-user-check fa-2x text-success user-icon" style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));"></i>';
         }
+
+        // Add or update a small points badge next to the user button so it's visible on any page
+        try {
+            // ensure the button is positioned relatively to anchor the badge
+            userDropdownButton.style.position = userDropdownButton.style.position || 'relative';
+            let badge = document.getElementById('header-points-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.id = 'header-points-badge';
+                badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark';
+                badge.style.fontSize = '0.65em';
+                badge.style.padding = '2px 6px';
+                badge.style.cursor = 'pointer';
+                badge.title = 'Puntos de lealtad (ver perfil)';
+                badge.addEventListener('click', function(ev){ ev.stopPropagation(); window.location.href = 'profile.html'; });
+                userDropdownButton.appendChild(badge);
+            }
+            // Update badge value from loyaltyManager if available, else from localStorage
+            (function updateBadge(){
+                try {
+                    const emailForPoints = localStorage.getItem('userEmail') || userEmail;
+                    let pointsText = '';
+                    if (window.loyaltyManager && typeof window.loyaltyManager.getLoyaltySummary === 'function') {
+                        const summ = window.loyaltyManager.getLoyaltySummary(emailForPoints || '');
+                        pointsText = summ && typeof summ.points === 'number' ? String(summ.points) : '';
+                    } else {
+                        // fallback: if there's a loyalty_{email} entry, parse it
+                        try {
+                            const raw = localStorage.getItem('loyalty_' + (emailForPoints || ''));
+                            if (raw) {
+                                const obj = JSON.parse(raw);
+                                pointsText = obj && typeof obj.points === 'number' ? String(obj.points) : '';
+                            }
+                        } catch(e) { pointsText = ''; }
+                    }
+                    badge.innerText = pointsText || '';
+                    badge.style.display = (pointsText || '') ? 'inline-block' : 'none';
+                } catch(e) { /* ignore */ }
+            })();
+        } catch (e) { console.warn('Could not add header points badge', e); }
         
         // Actualizar contenido del dropdown para usuarios logueados
         const userInfoElements = {
@@ -1066,6 +1106,8 @@ function updateUserInterface() {
                 <i class="fa-solid fa-user-plus text-success me-2"></i>Registrarse
             </a>
         `;
+        // remove header points badge if present
+        try { const badge = document.getElementById('header-points-badge'); if (badge && badge.parentNode) badge.parentNode.removeChild(badge); } catch(e){}
     }
 }
 

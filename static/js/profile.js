@@ -44,11 +44,63 @@
         photoPreview.src = user.photo;
         photoPreview.style.display = 'inline-block';
       }
+        // render loyalty summary for this user
+        try {
+          const emailForLoyalty = user.email || localStorage.getItem('userEmail') || JSON.parse(localStorage.getItem('currentUser')||'{}').email;
+          renderLoyaltySummaryFor(emailForLoyalty);
+        } catch(e){}
     } catch (err) {
       console.error('Error cargando perfil', err);
       showAlert('No fue posible cargar tu perfil. Asegúrate de estar autenticado.', 'warning');
     }
   }
+
+  // Loyalty display helpers
+  function renderLoyaltySummaryFor(email) {
+    const panel = qs('#loyaltyPanel');
+    const pointsEl = qs('#lp_points');
+    const tierEl = qs('#lp_tier');
+    const availEl = qs('#lp_availableDiscount');
+    if (!panel || !pointsEl || !tierEl || !availEl) return;
+
+    try {
+      if (!email) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      if (!window.loyaltyManager || typeof window.loyaltyManager.getLoyaltySummary !== 'function') {
+        // If loyaltyManager not available, still show panel with note
+        panel.style.display = 'block';
+        pointsEl.innerText = 'N/D';
+        tierEl.innerText = 'N/D';
+        availEl.innerText = 'N/D';
+        return;
+      }
+
+      const summary = window.loyaltyManager.getLoyaltySummary(email);
+      if (!summary) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      panel.style.display = 'block';
+      pointsEl.innerText = summary.points ?? 0;
+      tierEl.innerText = summary.tierName || (summary.tier || '--');
+      availEl.innerText = (summary.availableDiscount != null) ? ('$' + Number(summary.availableDiscount).toFixed(2)) : '$0.00';
+    } catch (e) {
+      console.warn('renderLoyaltySummaryFor error', e);
+    }
+  }
+
+  // Refresh loyalty when user clicks
+  const lpRefreshBtn = qs('#lp_refresh');
+  if (lpRefreshBtn) lpRefreshBtn.addEventListener('click', () => {
+    const email = qs('#email') ? qs('#email').value.trim() : (localStorage.getItem('userEmail') || JSON.parse(localStorage.getItem('currentUser')||'{}').email);
+    renderLoyaltySummaryFor(email);
+    lpRefreshBtn.disabled = true;
+    setTimeout(()=>{ lpRefreshBtn.disabled = false; }, 800);
+  });
 
   profileForm.addEventListener('submit', async (e) => {
     e.preventDefault();

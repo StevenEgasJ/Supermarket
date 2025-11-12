@@ -38,6 +38,8 @@ class AdminPanelManager {
         this._productos = [];
         this._usuarios = [];
         this._pedidos = [];
+        // internal counter for automatic fetchUsers retries (to avoid infinite loops)
+        this._fetchUsersAttempts = 0;
         // Kick off background sync from server (non-blocking)
         try {
             this.loadServerData();
@@ -702,22 +704,37 @@ class AdminPanelManager {
     showUsers() {
         const usuarios = this.getUsers();
         const tbody = document.getElementById('usersTable');
+        if (!tbody) {
+            console.warn('usersTable element not found in DOM');
+            return;
+        }
+
+        if (!usuarios || usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados</td></tr>';
+            return;
+        }
+
+        // If we have users to show, ensure any prior error/status message is hidden
+        try {
+            const errEl = document.getElementById('usersError');
+            if (errEl) errEl.style.display = 'none';
+        } catch (e) { /* ignore */ }
 
         tbody.innerHTML = usuarios.map(user => `
             <tr>
-                <td>${user.email}</td>
-                <td>${user.nombre}</td>
-                <td>${user.apellido}</td>
-                <td>${user.cedula}</td>
+                <td>${escapeHtml(user.email || '')}</td>
+                <td>${escapeHtml(user.nombre || '')}</td>
+                <td>${escapeHtml(user.apellido || '')}</td>
+                <td>${escapeHtml(user.cedula || '')}</td>
                 <td>${user.fechaRegistro ? new Date(user.fechaRegistro).toLocaleDateString() : 'N/A'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="adminManager.viewUser('${user.id}')">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="adminManager.viewUser('${escapeJsStringSingle(user.id || user._id || user.email)}')">
                         <i class="fa-solid fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success me-2" onclick="adminManager.editUser('${user.id}')">
+                    <button class="btn btn-sm btn-outline-success me-2" onclick="adminManager.editUser('${escapeJsStringSingle(user.id || user._id || user.email)}')">
                         <i class="fa-solid fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="adminManager.deleteUser('${user.id}')">
+                    <button class="btn btn-sm btn-outline-danger" onclick="adminManager.deleteUser('${escapeJsStringSingle(user.id || user._id || user.email)}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </td>
@@ -763,10 +780,44 @@ class AdminPanelManager {
             // keep users in-memory only
             this._usuarios = normalized;
             console.log('Admin: usuarios cargados desde server (in-memory):', normalized.length);
+            // Reset fetch attempts counter on success
+            this._fetchUsersAttempts = 0;
+            // Clear any previous UI error
+            try {
+                const errEl = document.getElementById('usersError');
+                if (errEl) { errEl.style.display = 'none'; }
+            } catch (_) {}
             return normalized;
         } catch (err) {
             console.warn('fetchUsers error:', err);
-            throw err;
+            // On failure, ensure the in-memory cache is an empty array and return [] instead of throwing.
+            this._usuarios = [];
+
+            // Show a visible error message in the Users section (if present)
+            try {
+                const errEl = document.getElementById('usersError');
+                const msgEl = document.getElementById('usersErrorMsg');
+                const retryBtn = document.getElementById('usersRetryBtn');
+                if (msgEl) msgEl.textContent = 'Error cargando usuarios: ' + (err && err.message ? err.message : String(err));
+                if (errEl) errEl.style.display = 'flex';
+                if (retryBtn) retryBtn.disabled = false;
+            } catch (e) {
+                // ignore UI errors
+            }
+            // Automatic retry: try up to 3 times with small backoff before giving control to the manual retry button.
+            try {
+                this._fetchUsersAttempts = (this._fetchUsersAttempts || 0) + 1;
+                if (this._fetchUsersAttempts <= 3) {
+                    const backoff = 500 * this._fetchUsersAttempts; // 500ms, 1000ms, 1500ms
+                    console.log(`fetchUsers failed, will retry automatically in ${backoff}ms (attempt ${this._fetchUsersAttempts})`);
+                    await new Promise(res => setTimeout(res, backoff));
+                    return await this.fetchUsers();
+                }
+            } catch (retryErr) {
+                console.warn('Automatic retry failed:', retryErr);
+            }
+
+            return [];
         }
     }
 
@@ -1794,6 +1845,32 @@ function adminLogout() {
     }
 }
 
+// Retry helper exposed globally for the retry button in admin.html
+function retryFetchUsers() {
+    (async () => {
+        try {
+            const btn = document.getElementById('usersRetryBtn');
+            if (btn) btn.disabled = true;
+            if (!adminManager || typeof adminManager.fetchUsers !== 'function') {
+                console.warn('adminManager not available for retry');
+                if (btn) btn.disabled = false;
+                return;
+            }
+            const users = await adminManager.fetchUsers();
+            adminManager.showUsers();
+            // hide error area if successful and users found
+            try { const errEl = document.getElementById('usersError'); if (errEl) errEl.style.display = 'none'; } catch(_){}
+            if (!users || users.length === 0) {
+                // If still empty, re-enable button so admin can try again
+                if (btn) btn.disabled = false;
+            }
+        } catch (err) {
+            console.error('retryFetchUsers error:', err);
+            try { const btn = document.getElementById('usersRetryBtn'); if (btn) btn.disabled = false; } catch(_){}
+        }
+    })();
+}
+
 // Funciones para mostrar secciones
 function showDashboard() { 
     showSection('dashboard'); 
@@ -2216,13 +2293,13 @@ async function startCamera() {
         
         // Guardar referencia del stream para poder cerrarlo
         window.currentCameraStream = stream;
-        
-    } catch (error) {
-        console.error('Error accediendo a la cámara:', error);
+    } catch (err) {
+        console.error('startCamera error:', err);
         Swal.fire({
-            title: 'Error de cámara',
-            text: 'No se pudo acceder a la cámara. Verifica los permisos.',
-            icon: 'error'
+            title: 'Error',
+            text: 'No se pudo iniciar la cámara. Verifique los permisos.',
+            icon: 'error',
+            confirmButtonText: 'OK'
         });
     }
 }

@@ -46,6 +46,20 @@
         <button id="logoutBtn" type="button" class="btn btn-secondary">Cerrar sesión</button>
       </div>
     </form>
+
+    <!-- Loyalty / Puntos de usuario -->
+    <div id="loyaltyPanel" class="card p-3 shadow-sm mt-4" style="max-width:720px; display:none;">
+      <h5 class="mb-2">Programa de Lealtad</h5>
+      <div id="loyaltyContent">
+        <div class="mb-2">Puntos disponibles: <strong id="lp_points">--</strong></div>
+        <div class="mb-2">Nivel: <strong id="lp_tier">--</strong></div>
+        <div class="mb-2">Descuento disponible: <strong id="lp_availableDiscount">--</strong></div>
+        <div class="d-flex gap-2">
+          <button id="lp_refresh" class="btn btn-sm btn-outline-primary">Actualizar puntos</button>
+          <a href="loyalty.html" id="lp_manage" class="btn btn-sm btn-primary">Ver programa</a>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="./static/js/profile.js"></script>
